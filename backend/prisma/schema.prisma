@@ -1,0 +1,364 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlanType {
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum UserRole {
+  ADMIN
+  TECHNICIAN
+  PATHOLOGIST
+  RECEPTION
+  PATIENT
+}
+
+enum ComplianceType {
+  HIPAA
+  GDPR
+  NABL
+  ISO17025
+  NHS_GDPR
+  DHA_MOH
+}
+
+enum UnitsSystem {
+  METRIC
+  IMPERIAL
+}
+
+enum TaxType {
+  GST
+  VAT
+  NONE
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+enum ResultStatus {
+  NORMAL
+  ABNORMAL
+  CRITICAL
+}
+
+enum DeliveryMethod {
+  EMAIL
+  SMS
+  WHATSAPP
+  PORTAL
+  PRINT
+}
+
+enum InvoiceStatus {
+  PAID
+  PENDING
+  CANCELLED
+}
+
+enum AnalyzerProtocol {
+  HL7
+  ASTM
+  VENDOR
+}
+
+model Tenant {
+  id                  String        @id @default(cuid())
+  name                String
+  slug                String        @unique
+  plan                PlanType      @default(STARTER)
+  regionId            String        @map("region_id")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  onboardingStep      Int           @default(1) @map("onboarding_step")
+  branchName          String?       @map("branch_name")
+  branchAddress       String?       @map("branch_address")
+  complianceOverride  Json?         @map("compliance_override")
+
+  region              Region        @relation(fields: [regionId], references: [id])
+  users               User[]
+  patients            Patient[]
+  testCatalog         TestCatalog[]
+  testOrders          TestOrder[]
+  reports             Report[]
+  analyzers           Analyzer[]
+  auditLogs           AuditLog[]
+  consentLogs         ConsentLog[]
+  invoices            Invoice[]
+
+  @@index([regionId])
+}
+
+model Region {
+  id                 String         @id @default(cuid())
+  countryCode        String         @unique @map("country_code")
+  countryName        String         @map("country_name")
+  timezone           String
+  currency           String
+  unitsSystem        UnitsSystem    @map("units_system")
+  complianceType     ComplianceType @map("compliance_type")
+  dataResidencyZone  String         @map("data_residency_zone")
+  taxType            TaxType        @map("tax_type")
+  taxRate            Decimal        @db.Decimal(5, 2) @map("tax_rate")
+  storageBucketRegion String        @map("storage_bucket_region")
+  reportFooter       String         @map("report_footer")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  tenants            Tenant[]
+}
+
+model User {
+  id            String     @id @default(cuid())
+  tenantId      String     @map("tenant_id")
+  email         String
+  phone         String
+  passwordHash  String     @map("password_hash")
+  role          UserRole
+  isVerified    Boolean    @default(false) @map("is_verified")
+  lastLogin     DateTime?  @map("last_login")
+  mfaEnabled    Boolean    @default(false) @map("mfa_enabled")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  active        Boolean    @default(true)
+
+  tenant        Tenant     @relation(fields: [tenantId], references: [id])
+  createdPatients Patient[] @relation("CreatedBy")
+  orderedTests   TestOrder[] @relation("OrderedBy")
+  enteredResults TestResult[] @relation("EnteredBy")
+  verifiedResults TestResult[] @relation("VerifiedBy")
+  signedReports  Report[]   @relation("SignedBy")
+  auditLogs      AuditLog[]
+  consentLogs    ConsentLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+}
+
+model Patient {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  mrn              String
+  nameEncrypted    String    @map("name_encrypted")
+  dobEncrypted     String    @map("dob_encrypted")
+  gender           String
+  phoneEncrypted   String    @map("phone_encrypted")
+  emailEncrypted   String?   @map("email_encrypted")
+  addressEncrypted String?   @map("address_encrypted")
+  insuranceId      String?   @map("insurance_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  createdBy        String    @map("created_by")
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  createdByUser    User      @relation("CreatedBy", fields: [createdBy], references: [id])
+  orders           TestOrder[]
+  invoices         Invoice[]
+
+  @@unique([tenantId, mrn])
+  @@index([tenantId, createdAt])
+}
+
+model TestCatalog {
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  code               String
+  name               String
+  category           String
+  normalRangeMale    String   @map("normal_range_male")
+  normalRangeFemale  String   @map("normal_range_female")
+  unit               String
+  method             String
+  turnaroundHours    Int      @map("turnaround_hours")
+  price              Decimal  @db.Decimal(12, 2)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  testResults        TestResult[]
+  analyzerMappings   AnalyzerMapping[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category])
+}
+
+model TestOrder {
+  id                String      @id @default(cuid())
+  tenantId          String      @map("tenant_id")
+  patientId         String      @map("patient_id")
+  orderedBy         String      @map("ordered_by")
+  status            OrderStatus @default(PENDING)
+  priority          Priority    @default(ROUTINE)
+  sampleCollectedAt DateTime?   @map("sample_collected_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  tenant            Tenant      @relation(fields: [tenantId], references: [id])
+  patient           Patient     @relation(fields: [patientId], references: [id])
+  orderedByUser     User        @relation("OrderedBy", fields: [orderedBy], references: [id])
+  results           TestResult[]
+  report            Report?
+  invoice           Invoice?
+
+  @@index([tenantId, status])
+  @@index([patientId, createdAt])
+}
+
+model TestResult {
+  id                 String       @id @default(cuid())
+  orderId            String       @map("order_id")
+  testCatalogId      String       @map("test_catalog_id")
+  value              String
+  unit               String
+  status             ResultStatus
+  referenceRange     String       @map("reference_range")
+  machineId          String?      @map("machine_id")
+  enteredBy          String       @map("entered_by")
+  verifiedBy         String?      @map("verified_by")
+  analyzerRawMessage String?      @db.Text @map("analyzer_raw_message")
+  receivedAt         DateTime     @default(now()) @map("received_at")
+  verifiedAt         DateTime?    @map("verified_at")
+
+  order              TestOrder    @relation(fields: [orderId], references: [id])
+  testCatalog        TestCatalog  @relation(fields: [testCatalogId], references: [id])
+  enteredByUser      User         @relation("EnteredBy", fields: [enteredBy], references: [id])
+  verifiedByUser     User?        @relation("VerifiedBy", fields: [verifiedBy], references: [id])
+
+  @@index([orderId, status])
+  @@index([receivedAt])
+}
+
+model Report {
+  id                   String         @id @default(cuid())
+  tenantId             String         @map("tenant_id")
+  orderId              String         @unique @map("order_id")
+  pdfUrl               String         @map("pdf_url")
+  digitalSignatureHash String?        @map("digital_signature_hash")
+  signedBy             String?        @map("signed_by")
+  signedAt             DateTime?      @map("signed_at")
+  deliveredAt          DateTime?      @map("delivered_at")
+  deliveryMethod       DeliveryMethod? @map("delivery_method")
+  isAmended            Boolean        @default(false) @map("is_amended")
+  amendmentReason      String?        @map("amendment_reason")
+  createdAt            DateTime       @default(now()) @map("created_at")
+
+  tenant               Tenant         @relation(fields: [tenantId], references: [id])
+  order                TestOrder      @relation(fields: [orderId], references: [id])
+  signedByUser         User?          @relation("SignedBy", fields: [signedBy], references: [id])
+
+  @@index([tenantId, createdAt])
+}
+
+model Analyzer {
+  id               String           @id @default(cuid())
+  tenantId         String           @map("tenant_id")
+  name             String
+  model            String
+  manufacturer     String
+  protocol         AnalyzerProtocol
+  ipAddress        String           @map("ip_address")
+  port             Int
+  isActive         Boolean          @default(true) @map("is_active")
+  lastConnectedAt  DateTime?        @map("last_connected_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  mappings         AnalyzerMapping[]
+
+  @@index([tenantId, isActive])
+}
+
+model AnalyzerMapping {
+  id               String      @id @default(cuid())
+  analyzerId       String      @map("analyzer_id")
+  machineParamName String      @map("machine_param_name")
+  testCatalogId    String      @map("test_catalog_id")
+  transformFormula String?     @map("transform_formula")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  analyzer         Analyzer    @relation(fields: [analyzerId], references: [id])
+  testCatalog      TestCatalog @relation(fields: [testCatalogId], references: [id])
+
+  @@unique([analyzerId, machineParamName])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  timestamp  DateTime @default(now())
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, timestamp])
+}
+
+model ConsentLog {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  userId        String   @map("user_id")
+  policyType    String   @map("policy_type")
+  policyVersion String   @map("policy_version")
+  acceptedAt    DateTime @default(now()) @map("accepted_at")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, policyType])
+}
+
+model OtpLog {
+  id         String    @id @default(cuid())
+  phone      String
+  otpHash    String    @map("otp_hash")
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([phone, createdAt])
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  tenantId   String        @map("tenant_id")
+  orderId    String        @unique @map("order_id")
+  patientId  String        @map("patient_id")
+  subtotal   Decimal       @db.Decimal(12, 2)
+  taxAmount  Decimal       @db.Decimal(12, 2) @map("tax_amount")
+  taxType    TaxType       @map("tax_type")
+  total      Decimal       @db.Decimal(12, 2)
+  currency   String
+  status     InvoiceStatus @default(PENDING)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  order      TestOrder     @relation(fields: [orderId], references: [id])
+  patient    Patient       @relation(fields: [patientId], references: [id])
+
+  @@index([tenantId, status])
+}
