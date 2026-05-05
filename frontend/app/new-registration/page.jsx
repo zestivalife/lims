@@ -379,7 +379,7 @@ export default function NewRegistrationPage() {
     <PageWrapper>
       <h1 className="page-title">New Registration</h1>
 
-      <form onSubmit={onRegister} className="grid-12">
+      <form onSubmit={onRegister} className="grid-12 compact-grid compact-page">
         <div className="span-12">
           <MsCard title="Patient Details">
             <div className="ms-form-grid">
@@ -534,7 +534,7 @@ export default function NewRegistrationPage() {
         </div>
 
         <div className="span-7">
-          <MsCard title="Test & Package Selection">
+          <MsCard title="Test & Package Selection" bodyClassName="compact-card-body">
             <div className="ms-form-grid">
               <div className="span-12">
                 <div className="tabs-row">
@@ -610,7 +610,7 @@ export default function NewRegistrationPage() {
         </div>
 
         <div className="span-5">
-          <MsCard title="Billing & Payment">
+          <MsCard title="Billing & Payment" bodyClassName="compact-card-body">
             <div className="ms-form-grid">
               <div className="span-12 ms-table-wrap">
                 <table className="ms-table">

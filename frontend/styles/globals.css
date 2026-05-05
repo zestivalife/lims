@@ -138,8 +138,16 @@ a {
   grid-column: span 8;
 }
 
+.span-7 {
+  grid-column: span 7;
+}
+
 .span-6 {
   grid-column: span 6;
+}
+
+.span-5 {
+  grid-column: span 5;
 }
 
 .span-4 {
@@ -356,6 +364,21 @@ a {
 .ms-section {
   display: grid;
   gap: 16px;
+}
+
+.compact-page {
+  height: calc(100vh - 120px);
+  overflow: hidden;
+}
+
+.compact-grid {
+  height: 100%;
+  align-content: start;
+}
+
+.compact-card-body {
+  max-height: calc(100vh - 290px);
+  overflow: auto;
 }
 
 .ms-actions {
@@ -583,7 +606,9 @@ a {
 
   .span-12,
   .span-8,
+  .span-7,
   .span-6,
+  .span-5,
   .span-4,
   .span-3 {
     grid-column: span 2;
@@ -616,7 +641,9 @@ a {
 
   .span-12,
   .span-8,
+  .span-7,
   .span-6,
+  .span-5,
   .span-4,
   .span-3 {
     grid-column: span 1;
@@ -642,6 +669,16 @@ a {
 
   .page {
     padding: 16px;
+  }
+
+  .compact-page {
+    height: auto;
+    overflow: visible;
+  }
+
+  .compact-card-body {
+    max-height: none;
+    overflow: visible;
   }
 
   .page-title {
