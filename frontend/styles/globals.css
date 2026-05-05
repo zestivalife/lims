@@ -55,7 +55,7 @@ a {
   min-height: 100vh;
   position: sticky;
   top: 0;
-  background: linear-gradient(180deg, rgba(248, 248, 250, 0.9) 0%, rgba(241, 242, 246, 0.94) 100%);
+  background: linear-gradient(180deg, rgba(251, 251, 253, 0.84) 0%, rgba(243, 244, 249, 0.92) 100%);
   border-right: 1px solid var(--ios-divider);
   backdrop-filter: var(--ios-blur);
   padding: 20px 0 24px;
@@ -81,32 +81,126 @@ a {
   padding: 20px 24px 10px;
 }
 
-.sidebar a {
+.sidebar-tree {
+  display: grid;
+  gap: 4px;
+}
+
+.sidebar-section-block {
+  display: grid;
+  gap: 6px;
+}
+
+.sidebar-section-items {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-node {
+  display: grid;
+  gap: 4px;
+}
+
+.nav-group-btn,
+.nav-link {
   display: block;
   margin: 0 14px 6px;
   padding: 0 16px;
-  height: 42px;
-  line-height: 42px;
+  min-height: 40px;
+  line-height: 40px;
   text-decoration: none;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid transparent;
-  font-size: 17px;
-  font-weight: 530;
+  font-size: 15px;
+  font-weight: 560;
   color: #2f2f33;
-  transition: all 0.16s ease;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.sidebar a:hover {
+.nav-group-btn {
+  width: calc(100% - 28px);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  line-height: 1.2;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.nav-children {
+  display: grid;
+  gap: 4px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+  transition: max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease;
+}
+
+.nav-children.open {
+  max-height: 900px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nav-chevron {
+  transition: transform 0.2s ease;
+  color: #86868f;
+}
+
+.nav-group-btn.open .nav-chevron {
+  transform: rotate(180deg);
+}
+
+.nav-level-1 .nav-group-btn,
+.nav-level-1 .nav-link {
+  margin-left: 22px;
+  margin-right: 18px;
+  min-height: 34px;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #4b4b52;
+}
+
+.nav-level-2 .nav-group-btn,
+.nav-level-2 .nav-link {
+  margin-left: 34px;
+  margin-right: 18px;
+  min-height: 32px;
+  font-size: 13px;
+  color: #5a5a62;
+}
+
+.nav-link {
+  line-height: 40px;
+}
+
+.nav-group-btn:hover,
+.nav-link:hover {
   background: rgba(10, 132, 255, 0.08);
   border-color: rgba(10, 132, 255, 0.18);
   color: #1f64d8;
+  transform: translateX(1px);
 }
 
-.sidebar a.active {
+.nav-group-btn.active,
+.nav-link.active {
   background: linear-gradient(135deg, rgba(10, 132, 255, 0.9), rgba(0, 95, 204, 0.92));
   color: #fff;
   border-color: rgba(255, 255, 255, 0.28);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), var(--ios-shadow-soft);
+}
+
+.nav-group-btn.active .nav-chevron {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.active-trail > .nav-group-btn {
+  border-color: rgba(10, 132, 255, 0.16);
+  background: rgba(10, 132, 255, 0.05);
 }
 
 .header {
@@ -237,6 +331,13 @@ a {
   backdrop-filter: var(--ios-blur);
   box-shadow: var(--ios-shadow);
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+}
+
+.ms-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(26, 26, 28, 0.13);
+  border-color: rgba(10, 132, 255, 0.18);
 }
 
 .ms-card-header {
@@ -316,6 +417,10 @@ a {
 
 .ms-btn:active {
   transform: scale(0.98);
+}
+
+.ms-btn:hover {
+  transform: translateY(-1px);
 }
 
 .ms-btn-primary {
@@ -572,11 +677,13 @@ a {
   border: 1px solid var(--ios-divider);
   background: rgba(255, 255, 255, 0.82);
   cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
 .icon-btn:hover {
   border-color: rgba(10, 132, 255, 0.35);
   background: rgba(10, 132, 255, 0.08);
+  transform: scale(1.04);
 }
 
 .ms-modal-overlay {
@@ -656,8 +763,9 @@ a {
     font-size: 46px;
   }
 
-  .sidebar a {
-    font-size: 16px;
+  .nav-group-btn,
+  .nav-link {
+    font-size: 14px;
   }
 
   .header-title {
@@ -679,7 +787,8 @@ a {
     display: none;
   }
 
-  .sidebar a {
+  .nav-group-btn,
+  .nav-link {
     margin: 0 8px 6px;
     padding: 0 8px;
     height: 44px;
@@ -748,13 +857,22 @@ a {
     font-size: 30px;
   }
 
-  .sidebar a {
+  .nav-group-btn,
+  .nav-link {
     margin: 0;
     padding: 0 10px;
     height: 36px;
     line-height: 36px;
     border-radius: 10px;
     font-size: 12px;
+  }
+
+  .nav-level-1 .nav-group-btn,
+  .nav-level-1 .nav-link,
+  .nav-level-2 .nav-group-btn,
+  .nav-level-2 .nav-link {
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .header {
