@@ -38,7 +38,7 @@ a {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 372px 1fr;
+  grid-template-columns: 216px 1fr;
 }
 
 .app-shell > section {
@@ -74,7 +74,7 @@ a {
   border-left: 4px solid transparent;
   border-radius: 0 999px 999px 0;
   margin-right: 14px;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
 }
 
