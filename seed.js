@@ -58,7 +58,15 @@ const tests = [
 
 const analyzerSeed = [
   { name: 'Sysmex XN-series', model: 'XN-1000', manufacturer: 'Sysmex', protocol: 'HL7', ipAddress: '192.168.1.10', port: 5000 },
-  { name: 'Roche Cobas', model: 'Cobas c311', manufacturer: 'Roche', protocol: 'ASTM', ipAddress: '192.168.1.11', port: 5001 }
+  { name: 'Roche Cobas', model: 'Cobas c311', manufacturer: 'Roche', protocol: 'ASTM', ipAddress: '192.168.1.11', port: 5001 },
+  { name: 'Abbott Alinity i', model: 'Alinity i', manufacturer: 'Abbott', protocol: 'HL7', ipAddress: '192.168.1.12', port: 5002 },
+  { name: 'Beckman AU5800', model: 'AU5800', manufacturer: 'Beckman Coulter', protocol: 'ASTM', ipAddress: '192.168.1.13', port: 5003 },
+  { name: 'Mindray BC-6800', model: 'BC-6800', manufacturer: 'Mindray', protocol: 'HL7', ipAddress: '192.168.1.14', port: 5004 },
+  { name: 'Siemens Atellica', model: 'CH 930', manufacturer: 'Siemens', protocol: 'HL7', ipAddress: '192.168.1.15', port: 5005 },
+  { name: 'Vitros 5600', model: 'Vitros 5600', manufacturer: 'Ortho Clinical', protocol: 'ASTM', ipAddress: '192.168.1.16', port: 5006 },
+  { name: 'Horiba Yumizen', model: 'H550', manufacturer: 'Horiba', protocol: 'HL7', ipAddress: '192.168.1.17', port: 5007 },
+  { name: 'Erba XL', model: 'XL-640', manufacturer: 'Erba', protocol: 'ASTM', ipAddress: '192.168.1.18', port: 5008 },
+  { name: 'Bio-Rad D10', model: 'D10', manufacturer: 'Bio-Rad', protocol: 'HL7', ipAddress: '192.168.1.19', port: 5009 }
 ];
 
 function pick(arr) {
@@ -219,13 +227,15 @@ async function run() {
     analyzers.push(row);
   }
 
-  for (const entry of catalog.slice(0, 5)) {
+  for (let i = 0; i < 20; i += 1) {
+    const entry = catalog[i % catalog.length];
+    const analyzer = analyzers[i % analyzers.length];
     await prisma.analyzerMapping.create({
       data: {
-        analyzerId: analyzers[0].id,
-        machineParamName: entry.code,
+        analyzerId: analyzer.id,
+        machineParamName: `${entry.code}_${String(i + 1).padStart(2, '0')}`,
         testCatalogId: entry.id,
-        transformFormula: null
+        transformFormula: i % 3 === 0 ? 'x*1.0' : null
       }
     });
   }
@@ -311,13 +321,52 @@ async function run() {
     });
   }
 
-  await prisma.otpLog.create({
-    data: {
-      phone: crypto.createHash('sha256').update('9999999999').digest('hex'),
-      otpHash: crypto.createHash('sha256').update('123456').digest('hex'),
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000)
-    }
-  });
+  for (let i = 0; i < 12; i += 1) {
+    const phoneRaw = i === 0 ? '9999999999' : `98${String(90000000 + i).padStart(8, '0')}`;
+    await prisma.otpLog.create({
+      data: {
+        phone: crypto.createHash('sha256').update(phoneRaw).digest('hex'),
+        otpHash: crypto.createHash('sha256').update(i === 0 ? '123456' : String(111111 + i)).digest('hex'),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        usedAt: i % 4 === 0 ? new Date() : null
+      }
+    });
+  }
+
+  const consentPolicies = ['TERMS', 'PRIVACY', 'HIPAA_NOTICE', 'LAB_POLICY'];
+  for (let i = 0; i < 12; i += 1) {
+    const user = Object.values(userByRole)[i % Object.values(userByRole).length];
+    await prisma.consentLog.create({
+      data: {
+        tenantId: tenant.id,
+        userId: user.id,
+        policyType: consentPolicies[i % consentPolicies.length],
+        policyVersion: `v${1 + (i % 3)}.0`,
+        acceptedAt: randomDateInLastDays(30),
+        ipAddress: `10.10.0.${10 + i}`,
+        userAgent: 'Seed/Automation'
+      }
+    });
+  }
+
+  const auditActions = ['PATIENT_CREATE', 'ORDER_CREATE', 'RESULT_UPDATE', 'REPORT_SIGN', 'INVOICE_UPDATE', 'LOGIN'];
+  for (let i = 0; i < 30; i += 1) {
+    const user = Object.values(userByRole)[i % Object.values(userByRole).length];
+    await prisma.auditLog.create({
+      data: {
+        tenantId: tenant.id,
+        userId: user.id,
+        action: auditActions[i % auditActions.length],
+        entityType: ['Patient', 'TestOrder', 'TestResult', 'Report', 'Invoice'][i % 5],
+        entityId: createdOrders[i % createdOrders.length]?.id || null,
+        oldValue: i % 2 === 0 ? { status: 'PENDING' } : null,
+        newValue: i % 2 === 0 ? { status: 'COMPLETED' } : { note: 'No state change' },
+        ipAddress: `10.20.0.${20 + i}`,
+        userAgent: 'Seed/Automation',
+        timestamp: randomDateInLastDays(14)
+      }
+    });
+  }
 
   console.log('Seed complete.');
   console.log('Tenant: City Diagnostics — Demo Lab');
