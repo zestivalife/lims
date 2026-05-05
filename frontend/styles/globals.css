@@ -206,7 +206,7 @@ a {
 .header {
   height: 82px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   padding: 0 22px;
@@ -242,16 +242,21 @@ a {
 }
 
 .header-title {
-  font-size: 41px;
-  font-weight: 700;
+  font-size: clamp(24px, 2.2vw, 34px);
+  font-weight: 760;
   letter-spacing: -0.03em;
   color: var(--ios-pink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
 }
 
 .header-user-wrap {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: nowrap;
 }
 
 .header-user-chip {
@@ -282,6 +287,10 @@ a {
   font-size: 14px;
   font-weight: 600;
   color: #34343a;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .page {
@@ -768,9 +777,7 @@ a {
     font-size: 14px;
   }
 
-  .header-title {
-    font-size: 30px;
-  }
+  .header-title { font-size: clamp(21px, 2vw, 28px); }
 }
 
 @media (max-width: 1120px) {
@@ -799,7 +806,7 @@ a {
   }
 
   .header {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 10px;
     height: 72px;
     padding: 0 14px;
@@ -809,9 +816,7 @@ a {
     justify-self: end;
   }
 
-  .header-title {
-    font-size: 23px;
-  }
+  .header-title { font-size: 20px; }
 }
 
 @media (max-width: 900px) {
