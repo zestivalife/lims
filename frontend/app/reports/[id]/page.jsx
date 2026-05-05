@@ -73,7 +73,7 @@ export default function ReportViewerPage() {
         <div className="span-12">
           <MsCard title="Actions">
             <div className="ms-actions">
-              {(user?.role === 'PATHOLOGIST' || user?.role === 'ADMIN') && <MsButton onClick={() => setOpenSign(true)}>Sign Report</MsButton>}
+              {user?.role === 'PATHOLOGIST' && <MsButton onClick={() => setOpenSign(true)}>Sign Report</MsButton>}
               <MsButton variant="secondary" onClick={() => deliver('EMAIL')}>
                 Deliver Email
               </MsButton>

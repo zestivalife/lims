@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { allow } from '../../middleware/rbac.js';
 import { asyncHandler } from '../../utils/http.js';
 import {
+  createCatalogTest,
   createOrder,
   getCatalog,
   getOrder,
@@ -15,6 +16,7 @@ import {
 const router = Router();
 
 router.get('/catalog', allow('tests:read'), asyncHandler(getCatalog));
+router.post('/catalog', allow('tests:write'), asyncHandler(createCatalogTest));
 router.get('/orders', allow('tests:read'), asyncHandler(listOrders));
 router.post('/orders', allow('orders:write'), asyncHandler(createOrder));
 router.get('/orders/:id', allow('tests:read'), asyncHandler(getOrder));

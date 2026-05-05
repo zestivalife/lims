@@ -6,21 +6,29 @@ import MsCard from '@/components/ui/MsCard';
 import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
 import MsTable from '@/components/ui/MsTable';
-import MsBadge from '@/components/ui/MsBadge';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 
-const empty = { code: '', name: '', category: '', unit: '', turnaroundHours: '24', price: '0', method: 'Auto', normalRangeMale: '0-0', normalRangeFemale: '0-0' };
+const emptyForm = {
+  code: '',
+  name: '',
+  category: '',
+  unit: '',
+  referenceRange: '',
+  turnaroundHours: '24',
+  price: ''
+};
 
 export default function TestsMasterPage() {
   const toast = useToast();
   const [rows, setRows] = useState([]);
+  const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState('name');
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(emptyForm);
 
   async function load() {
     try {
-      const data = await api.get('/api/tests/catalog?page=1&pageSize=300');
+      const data = await api.get(`/api/tests/catalog?page=1&pageSize=300&q=${encodeURIComponent(query)}`);
       setRows(data.data || []);
     } catch (e) {
       toast.error(e.message || 'Failed to load tests');
@@ -34,19 +42,27 @@ export default function TestsMasterPage() {
   async function addTest(e) {
     e.preventDefault();
     try {
-      await api.post('/api/onboarding/step7', { addCatalog: [form] });
-      toast.success('Test added in demo catalog');
-      setForm(empty);
+      await api.post('/api/tests/catalog', {
+        code: form.code,
+        name: form.name,
+        category: form.category,
+        unit: form.unit,
+        referenceRange: form.referenceRange,
+        turnaroundHours: Number(form.turnaroundHours || 24),
+        price: Number(form.price || 0)
+      });
+      toast.success('Test created');
+      setForm(emptyForm);
       await load();
-    } catch {
-      toast.warning('Catalog add API unavailable in this build; showing current master list');
+    } catch (e2) {
+      toast.error(e2.message || 'Unable to create test');
     }
   }
 
-  const sorted = useMemo(() => {
-    const data = [...rows];
-    data.sort((a, b) => String(a[sortKey] || '').localeCompare(String(b[sortKey] || '')));
-    return data;
+  const data = useMemo(() => {
+    const list = [...rows];
+    list.sort((a, b) => String(a[sortKey] ?? '').localeCompare(String(b[sortKey] ?? '')));
+    return list;
   }, [rows, sortKey]);
 
   return (
@@ -54,35 +70,46 @@ export default function TestsMasterPage() {
       <h1 className="page-title">Tests Master</h1>
       <div className="grid-12">
         <div className="span-12">
-          <MsCard title="Create and maintain tests, parameters, and reference ranges.">
-            <form className="ms-form-grid" onSubmit={addTest}>
-              <div className="span-3"><MsInput label="Code" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Turnaround (hrs)" value={form.turnaroundHours} onChange={(e) => setForm({ ...form, turnaroundHours: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Price" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Male Ref Range" value={form.normalRangeMale} onChange={(e) => setForm({ ...form, normalRangeMale: e.target.value })} /></div>
-              <div className="span-3"><MsInput label="Female Ref Range" value={form.normalRangeFemale} onChange={(e) => setForm({ ...form, normalRangeFemale: e.target.value })} /></div>
-              <div className="span-12"><div className="ms-actions"><MsButton type="submit">Add Test</MsButton></div></div>
+          <MsCard title="Create Test">
+            <form onSubmit={addTest} className="ms-form-grid">
+              <div className="span-3"><MsInput label="Code *" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></div>
+              <div className="span-5"><MsInput label="Name *" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+              <div className="span-4"><MsInput label="Department *" required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
+              <div className="span-3"><MsInput label="Unit *" required value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} /></div>
+              <div className="span-3"><MsInput label="Reference Range" value={form.referenceRange} onChange={(e) => setForm({ ...form, referenceRange: e.target.value })} /></div>
+              <div className="span-3"><MsInput label="TAT (Hrs)" type="number" value={form.turnaroundHours} onChange={(e) => setForm({ ...form, turnaroundHours: e.target.value })} /></div>
+              <div className="span-3"><MsInput label="Price" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+              <div className="span-12">
+                <div className="ms-actions">
+                  <MsButton variant="secondary" type="button" onClick={() => setForm(emptyForm)}>Reset</MsButton>
+                  <MsButton type="submit">Save Test</MsButton>
+                </div>
+              </div>
             </form>
-            <div style={{ marginTop: 16 }}>
-              <MsTable
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'code', label: 'Code' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'unit', label: 'Unit' },
-                  { key: 'turnaroundHours', label: 'TAT' },
-                  { key: 'price', label: 'Price', render: (r) => Number(r.price).toFixed(2) },
-                  { key: 'status', label: 'Status', render: (r) => <MsBadge status={r.isActive ? 'ACTIVE' : 'INACTIVE'} /> }
-                ]}
-                rows={sorted}
-                onSort={setSortKey}
-                sortKey={sortKey}
-                paginationLabel={`Tests: ${sorted.length}`}
-              />
+          </MsCard>
+        </div>
+
+        <div className="span-12">
+          <MsCard title="Tests List">
+            <div className="filter-grid" style={{ marginBottom: 16 }}>
+              <MsInput label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <MsButton onClick={load}>Apply</MsButton>
             </div>
+            <MsTable
+              columns={[
+                { key: 'code', label: 'Code' },
+                { key: 'name', label: 'Name' },
+                { key: 'category', label: 'Department' },
+                { key: 'unit', label: 'Unit' },
+                { key: 'normalRangeMale', label: 'Range' },
+                { key: 'turnaroundHours', label: 'TAT' },
+                { key: 'price', label: 'Price', render: (row) => Number(row.price).toFixed(2) }
+              ]}
+              rows={data}
+              onSort={setSortKey}
+              sortKey={sortKey}
+              paginationLabel={`Rows: ${data.length}`}
+            />
           </MsCard>
         </div>
       </div>

@@ -52,6 +52,13 @@ export async function listPatients(req, res) {
 export async function createPatient(req, res) {
   requireFields(req.body, ['mrn', 'name', 'dob', 'gender', 'phone']);
 
+  const existingMrn = await prisma.patient.findFirst({
+    where: { tenantId: req.user.tenantId, mrn: req.body.mrn }
+  });
+  if (existingMrn) {
+    return res.status(409).json({ message: 'MRN already exists' });
+  }
+
   const encrypted = encryptPatientPayload(req.body);
 
   const patient = await prisma.patient.create({

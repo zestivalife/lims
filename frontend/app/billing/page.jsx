@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import PageWrapper from '@/components/layout/PageWrapper';
 import MsCard from '@/components/ui/MsCard';
 import MsInput from '@/components/ui/MsInput';
@@ -12,8 +11,7 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 
 export default function BillingPage() {
-  const params = useSearchParams();
-  const orderIdParam = params.get('orderId') || '';
+  const [orderIdParam, setOrderIdParam] = useState('');
   const toast = useToast();
   const [invoices, setInvoices] = useState([]);
   const [sortKey, setSortKey] = useState('id');
@@ -47,6 +45,13 @@ export default function BillingPage() {
       toast.error(e.message || 'Failed to load invoices');
     }
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const orderId = new URLSearchParams(window.location.search).get('orderId') || '';
+      setOrderIdParam(orderId);
+    }
+  }, []);
 
   useEffect(() => {
     load();
