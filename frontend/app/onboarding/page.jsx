@@ -13,8 +13,7 @@ const defaultSignup = {
   tenantSlug: '',
   adminEmail: '',
   adminPhone: '',
-  password: '',
-  countryKey: 'IN'
+  password: ''
 };
 
 const defaultLogin = {
@@ -63,7 +62,7 @@ export default function OnboardingPage() {
 
     setLoadingSignup(true);
     try {
-      await api.post('/api/onboarding/step1', signup, false);
+      await api.post('/api/onboarding/step1', { ...signup, countryKey: 'IN' }, false);
       toast.success('Account created. Logging you in.');
 
       const result = await api.post(
@@ -78,7 +77,12 @@ export default function OnboardingPage() {
       setSession(result);
       window.location.href = '/dashboard';
     } catch (err) {
-      toast.error(err.message || 'Failed to create account');
+      const msg = err.message || 'Failed to create account';
+      if (msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('already')) {
+        toast.warning('Lab/email already exists. Please use login on the right.');
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoadingSignup(false);
     }
@@ -107,7 +111,8 @@ export default function OnboardingPage() {
   return (
     <div className="page" style={{ maxWidth: 1280, margin: '0 auto' }}>
       <h1 className="page-title" style={{ marginBottom: 10 }}>Welcome to LIMS</h1>
-      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 20 }}>Create your lab account and start directly. Configuration can be done inside the system.</p>
+      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 8 }}>Create your lab account and start directly. Configuration can be done inside the system.</p>
+      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 20, fontSize: 12 }}>Build: IOS-ONBOARDING-2026-05-05-01</p>
 
       <div className="grid-12">
         <div className="span-8">
@@ -168,19 +173,7 @@ export default function OnboardingPage() {
               </div>
 
               <div className="span-6">
-                <label className="ms-label">Country</label>
-                <select
-                  className="ms-select"
-                  value={signup.countryKey}
-                  onChange={(e) => setSignup((prev) => ({ ...prev, countryKey: e.target.value }))}
-                >
-                  <option value="IN">India</option>
-                  <option value="US">USA</option>
-                  <option value="EU">EU</option>
-                  <option value="UK">UK</option>
-                  <option value="ME_AED">UAE</option>
-                  <option value="ME_SAR">Saudi Arabia</option>
-                </select>
+                <MsInput label="Region" value="India (default)" disabled />
               </div>
 
               <div className="span-12">
