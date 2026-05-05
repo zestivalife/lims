@@ -6,37 +6,14 @@ export default function Header() {
   const user = getUser();
   return (
     <header className="header">
-      <div>{user?.tenantId ? 'Laboratory Information Management System' : 'LIMS Platform'}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="header-title">{user?.tenantId ? 'Laboratory Information Management System' : 'LIMS Platform'}</div>
+      <div className="header-user-wrap">
         {user ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              border: '1px solid #ffd0da',
-              borderRadius: 999,
-              padding: '8px 14px',
-              color: '#383838',
-              background: '#fff9fb'
-            }}
-          >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: '50%',
-                background: '#ff385c',
-                color: '#fff',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-                textTransform: 'lowercase'
-              }}
-            >
+          <div className="header-user-chip">
+            <div className="header-user-avatar">
               {(user.email?.[0] || 'u').toLowerCase()}
             </div>
-            <span style={{ fontWeight: 600 }}>{user.email}</span>
+            <span className="header-user-email">{user.email}</span>
           </div>
         ) : null}
         {user ? (

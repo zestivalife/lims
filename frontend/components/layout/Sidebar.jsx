@@ -48,7 +48,7 @@ export default function Sidebar({ role = 'ADMIN' }) {
 
   return (
     <aside className="sidebar">
-      <div style={{ padding: '0 30px 12px', fontSize: 42, fontWeight: 800, color: '#ff385c' }}>LIMS</div>
+      <div className="sidebar-logo">LIMS</div>
       {sections.map((section) => (
         <div key={section}>
           <div className="sidebar-section">{section}</div>
