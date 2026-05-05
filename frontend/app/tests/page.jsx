@@ -7,6 +7,7 @@ import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
 import MsTable from '@/components/ui/MsTable';
 import { api } from '@/lib/api';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 export default function TestsPage() {
@@ -22,7 +23,7 @@ export default function TestsPage() {
     async function load() {
       try {
         const [testsData, patientsData] = await Promise.all([
-          api.get('/api/tests/catalog?page=1&pageSize=100'),
+          bootstrapCatalogIfEmpty().then((data) => ({ data })),
           api.get('/api/patients?page=1&pageSize=100')
         ]);
         setCatalog(testsData.data || []);

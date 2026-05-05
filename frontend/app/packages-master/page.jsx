@@ -5,8 +5,8 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import MsCard from '@/components/ui/MsCard';
 import MsInput from '@/components/ui/MsInput';
 import MsTable from '@/components/ui/MsTable';
-import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 
 export default function PackagesMasterPage() {
   const toast = useToast();
@@ -16,8 +16,7 @@ export default function PackagesMasterPage() {
 
   async function load() {
     try {
-      const data = await api.get('/api/tests/catalog?page=1&pageSize=300');
-      const tests = data.data || [];
+      const tests = await bootstrapCatalogIfEmpty();
       const byCategory = new Map();
       for (const t of tests) {
         const key = t.category || 'GENERAL';

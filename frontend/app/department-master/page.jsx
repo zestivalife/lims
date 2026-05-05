@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import PageWrapper from '@/components/layout/PageWrapper';
 import MsCard from '@/components/ui/MsCard';
 import MsTable from '@/components/ui/MsTable';
-import { api } from '@/lib/api';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 export default function DepartmentMasterPage() {
@@ -16,8 +16,8 @@ export default function DepartmentMasterPage() {
   useEffect(() => {
     async function load() {
       try {
-        const tests = await api.get('/api/tests/catalog?page=1&pageSize=200');
-        const categories = [...new Set((tests.data || []).map((t) => t.category).filter(Boolean))];
+        const tests = await bootstrapCatalogIfEmpty();
+        const categories = [...new Set((tests || []).map((t) => t.category).filter(Boolean))];
         setRows(categories.map((c, i) => ({ id: String(i + 1), name: c, code: c.slice(0, 4).toUpperCase() })));
       } catch (e) {
         toast.error(e.message || 'Failed to load departments');

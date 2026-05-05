@@ -8,6 +8,7 @@ import MsCard from '@/components/ui/MsCard';
 import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
 import { useToast } from '@/components/ui/ToastProvider';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 
 const PATIENT_TITLES = ['Mr', 'Mrs', 'Ms'];
 const VISIT_TYPES = ['Walk-in', 'Referral'];
@@ -85,11 +86,11 @@ export default function NewRegistrationPage() {
   async function loadInitialData() {
     setLoading(true);
     try {
-      const [catalogRes, patientRes] = await Promise.all([
-        api.get('/api/tests/catalog?page=1&pageSize=1000'),
+      const [catalogRows, patientRes] = await Promise.all([
+        bootstrapCatalogIfEmpty(),
         api.get('/api/patients?page=1&pageSize=500')
       ]);
-      setCatalog(catalogRes.data || []);
+      setCatalog(catalogRows);
       setPatients(patientRes.data || []);
     } catch (error) {
       toast.error(error.message || 'Failed to load registration data');

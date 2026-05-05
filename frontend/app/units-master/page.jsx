@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import PageWrapper from '@/components/layout/PageWrapper';
 import MsCard from '@/components/ui/MsCard';
 import MsTable from '@/components/ui/MsTable';
-import { api } from '@/lib/api';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 export default function UnitsMasterPage() {
@@ -15,8 +15,8 @@ export default function UnitsMasterPage() {
   useEffect(() => {
     async function load() {
       try {
-        const tests = await api.get('/api/tests/catalog?page=1&pageSize=200');
-        const uniq = [...new Set((tests.data || []).map((t) => t.unit).filter(Boolean))];
+        const tests = await bootstrapCatalogIfEmpty();
+        const uniq = [...new Set((tests || []).map((t) => t.unit).filter(Boolean))];
         setUnits(uniq.map((u, i) => ({ id: String(i + 1), unit: u })));
       } catch (e) {
         toast.error(e.message || 'Failed to load units');

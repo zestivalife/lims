@@ -8,6 +8,7 @@ import MsButton from '@/components/ui/MsButton';
 import MsTable from '@/components/ui/MsTable';
 import MsBadge from '@/components/ui/MsBadge';
 import { api } from '@/lib/api';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 import { useToast } from '@/components/ui/ToastProvider';
 
 const machineApiCatalog = [
@@ -74,7 +75,7 @@ export default function AnalyzersPage() {
     try {
       const [a, t, m, logs] = await Promise.all([
         api.get('/api/analyzers?page=1&pageSize=200'),
-        api.get('/api/tests/catalog?page=1&pageSize=300'),
+        bootstrapCatalogIfEmpty().then((data) => ({ data })),
         api.get('/api/analyzers/mappings?page=1&pageSize=300'),
         api.get('/api/analyzers/message-logs?page=1&pageSize=200')
       ]);

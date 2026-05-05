@@ -8,6 +8,7 @@ import MsButton from '@/components/ui/MsButton';
 import MsTable from '@/components/ui/MsTable';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
+import { bootstrapCatalogIfEmpty } from '@/lib/demoCatalog';
 
 const emptyForm = {
   code: '',
@@ -28,8 +29,13 @@ export default function TestsMasterPage() {
 
   async function load() {
     try {
-      const data = await api.get(`/api/tests/catalog?page=1&pageSize=300&q=${encodeURIComponent(query)}`);
-      setRows(data.data || []);
+      if (query.trim()) {
+        const data = await api.get(`/api/tests/catalog?page=1&pageSize=300&q=${encodeURIComponent(query)}`);
+        setRows(data.data || []);
+      } else {
+        const seeded = await bootstrapCatalogIfEmpty();
+        setRows(seeded);
+      }
     } catch (e) {
       toast.error(e.message || 'Failed to load tests');
     }
