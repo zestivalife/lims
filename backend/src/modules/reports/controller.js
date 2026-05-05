@@ -60,6 +60,19 @@ export async function generateReport(req, res) {
     return res.status(404).json({ message: 'Order not found' });
   }
 
+  const invoice = await prisma.invoice.findFirst({
+    where: { orderId: order.id, tenantId: req.user.tenantId }
+  });
+  if (!invoice || invoice.status !== 'PAID') {
+    return res.status(400).json({ message: 'Billing must be paid before report generation' });
+  }
+
+  const hasResults = order.results.length > 0;
+  const allResultValuesPresent = hasResults && order.results.every((r) => String(r.value || '').trim() !== '');
+  if (order.status !== 'COMPLETED' || !allResultValuesPresent) {
+    return res.status(400).json({ message: 'Order must be completed with all test values before report generation' });
+  }
+
   const patient = decryptPatientRecord(order.patient);
   const pdfBuffer = await buildReportPdf({
     tenant: order.tenant,
@@ -101,8 +114,8 @@ export async function signReport(req, res) {
     return res.status(404).json({ message: 'Report not found' });
   }
 
-  if (req.user.role !== 'PATHOLOGIST' && req.user.role !== 'ADMIN') {
-    return res.status(403).json({ message: 'Only pathologist/admin can sign reports' });
+  if (req.user.role !== 'PATHOLOGIST') {
+    return res.status(403).json({ message: 'Only pathologist can sign reports' });
   }
 
   const signature = crypto
@@ -162,6 +175,10 @@ export async function deliverReport(req, res) {
 
   if (!report) {
     return res.status(404).json({ message: 'Report not found' });
+  }
+
+  if (!report.signedAt || !report.signedBy || !report.digitalSignatureHash) {
+    return res.status(400).json({ message: 'Signed report required before delivery' });
   }
 
   const patient = decryptPatientRecord(report.order.patient);
@@ -242,4 +259,37 @@ export async function myPortalReports(req, res) {
     }));
 
   res.json({ data: mine });
+}
+
+export async function listReports(req, res) {
+  const rows = await prisma.report.findMany({
+    where: { tenantId: req.user.tenantId },
+    include: {
+      order: {
+        include: {
+          patient: true
+        }
+      },
+      signedByUser: {
+        select: { id: true, email: true, role: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200
+  });
+
+  const data = rows.map((report) => {
+    const patient = decryptPatientRecord(report.order.patient);
+    return {
+      id: report.id,
+      orderId: report.orderId,
+      patientName: patient.name,
+      status: report.signedAt ? 'RELEASED' : 'DRAFT',
+      approvedBy: report.signedByUser?.email || null,
+      releasedAt: report.deliveredAt || null,
+      createdAt: report.createdAt
+    };
+  });
+
+  return res.json({ data });
 }

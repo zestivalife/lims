@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma.js';
-import { parsePagination } from '../../utils/validators.js';
+import { parsePagination, requireFields } from '../../utils/validators.js';
 
 export async function listInvoices(req, res) {
   const { skip, take, page, pageSize } = parsePagination(req.query);
@@ -43,5 +43,42 @@ export async function taxSummary(req, res) {
     subtotal,
     tax,
     total
+  });
+}
+
+export async function recordPayment(req, res) {
+  requireFields(req.body, ['invoiceId', 'amount', 'mode', 'status']);
+  const invoice = await prisma.invoice.findFirst({
+    where: {
+      id: req.body.invoiceId,
+      tenantId: req.user.tenantId
+    }
+  });
+
+  if (!invoice) {
+    return res.status(404).json({ message: 'Invoice not found' });
+  }
+
+  const amount = Number(req.body.amount);
+  if (Number.isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ message: 'Amount must be greater than zero' });
+  }
+
+  req.auditOldValue = invoice;
+  const nextStatus = String(req.body.status).toUpperCase() === 'PAID' ? 'PAID' : 'PENDING';
+  const updated = await prisma.invoice.update({
+    where: { id: invoice.id },
+    data: { status: nextStatus }
+  });
+
+  return res.json({
+    message: 'Payment recorded',
+    invoice: updated,
+    payment: {
+      amount,
+      mode: req.body.mode,
+      txRef: req.body.txRef || null,
+      receiptDelivery: req.body.receiptDelivery || []
+    }
   });
 }

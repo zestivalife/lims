@@ -5,6 +5,7 @@ import {
   createOrder,
   getCatalog,
   getOrder,
+  listOrders,
   getResultsByOrder,
   internalResults,
   manualResultEntry,
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.get('/catalog', allow('tests:read'), asyncHandler(getCatalog));
+router.get('/orders', allow('tests:read'), asyncHandler(listOrders));
 router.post('/orders', allow('orders:write'), asyncHandler(createOrder));
 router.get('/orders/:id', allow('tests:read'), asyncHandler(getOrder));
 router.put('/orders/:id/status', allow('orders:write'), asyncHandler(updateOrderStatus));

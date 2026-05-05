@@ -39,6 +39,75 @@ export async function getCatalog(req, res) {
   res.json({ page, pageSize, total, data });
 }
 
+export async function createCatalogTest(req, res) {
+  requireFields(req.body, ['code', 'name', 'category', 'unit', 'price']);
+
+  const code = String(req.body.code).trim().toUpperCase();
+  const duplicate = await prisma.testCatalog.findFirst({
+    where: { tenantId: req.user.tenantId, code }
+  });
+  if (duplicate) {
+    return res.status(409).json({ message: 'Test code already exists' });
+  }
+
+  const created = await prisma.testCatalog.create({
+    data: {
+      tenantId: req.user.tenantId,
+      code,
+      name: String(req.body.name).trim(),
+      category: String(req.body.category).trim(),
+      normalRangeMale: req.body.normalRangeMale || req.body.referenceRange || '',
+      normalRangeFemale: req.body.normalRangeFemale || req.body.referenceRange || '',
+      unit: String(req.body.unit).trim(),
+      method: req.body.method || 'AUTO',
+      turnaroundHours: Number(req.body.turnaroundHours || 24),
+      price: Number(req.body.price || 0),
+      isActive: req.body.isActive !== false
+    }
+  });
+
+  res.status(201).json(created);
+}
+
+export async function listOrders(req, res) {
+  const { skip, take, page, pageSize } = parsePagination(req.query);
+  const q = req.query.q?.trim();
+  const status = req.query.status?.trim();
+
+  const where = {
+    tenantId: req.user.tenantId,
+    ...(status ? { status } : {}),
+    ...(q
+      ? {
+          OR: [
+            { id: { contains: q, mode: 'insensitive' } },
+            { patient: { mrn: { contains: q, mode: 'insensitive' } } }
+          ]
+        }
+      : {})
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.testOrder.findMany({
+      where,
+      skip,
+      take,
+      include: {
+        patient: true,
+        results: {
+          include: { testCatalog: true }
+        },
+        invoice: true,
+        report: true
+      },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.testOrder.count({ where })
+  ]);
+
+  res.json({ page, pageSize, total, data: rows });
+}
+
 export async function createOrder(req, res) {
   requireFields(req.body, ['patientId', 'testCatalogIds', 'orderedBy']);
 
@@ -140,10 +209,24 @@ export async function updateOrderStatus(req, res) {
 
   req.auditOldValue = existing;
 
+  const allowedTransitions = {
+    PENDING: ['IN_PROGRESS', 'CANCELLED'],
+    IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
+    COMPLETED: [],
+    CANCELLED: []
+  };
+  const next = String(req.body.status || '').toUpperCase();
+  const canMove = (allowedTransitions[existing.status] || []).includes(next);
+  if (!canMove && existing.status !== next) {
+    return res.status(400).json({
+      message: `Invalid status transition: ${existing.status} -> ${next}`
+    });
+  }
+
   const updated = await prisma.testOrder.update({
     where: { id: req.params.id },
     data: {
-      status: req.body.status,
+      status: next,
       sampleCollectedAt: req.body.sampleCollectedAt ? new Date(req.body.sampleCollectedAt) : existing.sampleCollectedAt
     }
   });
@@ -188,9 +271,11 @@ export async function manualResultEntry(req, res) {
     getIo().to(req.user.tenantId).emit('result:new', updated);
   }
 
+  const allResults = await prisma.testResult.findMany({ where: { orderId: order.id } });
+  const allFilled = allResults.every((r) => String(r.value || '').trim() !== '');
   await prisma.testOrder.update({
     where: { id: order.id },
-    data: { status: 'IN_PROGRESS' }
+    data: { status: allFilled ? 'COMPLETED' : 'IN_PROGRESS' }
   });
 
   res.json({ message: 'Results saved', count: updates.length, data: updates });
@@ -284,9 +369,11 @@ export async function internalResults(req, res) {
         }
       });
 
+  const allResults = await prisma.testResult.findMany({ where: { orderId: req.body.orderId } });
+  const allFilled = allResults.every((r) => String(r.value || '').trim() !== '');
   await prisma.testOrder.update({
     where: { id: req.body.orderId },
-    data: { status: 'IN_PROGRESS' }
+    data: { status: allFilled ? 'COMPLETED' : 'IN_PROGRESS' }
   });
 
   getIo().to(tenantId).emit('result:new', result);
