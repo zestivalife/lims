@@ -4,8 +4,25 @@ import { clearSession, getUser } from '@/lib/auth';
 
 export default function Header() {
   const user = getUser();
+
+  const canGoBack = typeof window !== 'undefined' && window.history.length > 1;
   return (
     <header className="header">
+      <div className="header-nav">
+        <button
+          type="button"
+          className="header-nav-btn"
+          disabled={!canGoBack}
+          onClick={() => canGoBack && window.history.back()}
+          aria-label="Back"
+          title="Back"
+        >
+          ←
+        </button>
+        <button type="button" className="header-nav-btn" disabled aria-label="Forward" title="Forward">
+          →
+        </button>
+      </div>
       <div className="header-title">{user?.tenantId ? 'Laboratory Information Management System' : 'LIMS Platform'}</div>
       <div className="header-user-wrap">
         {user ? (
