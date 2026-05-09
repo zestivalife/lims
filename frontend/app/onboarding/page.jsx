@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { setSession } from '@/lib/auth';
 import MsCard from '@/components/ui/MsCard';
@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 
 const defaultSignup = {
   tenantName: '',
-  tenantSlug: '',
+  contactName: '',
   adminEmail: '',
   adminPhone: '',
   password: ''
@@ -38,20 +38,27 @@ export default function OnboardingPage() {
   const [loadingLogin, setLoadingLogin] = useState(false);
   const toast = useToast();
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const remembered = window.localStorage.getItem('lastTenantSlug') || '';
+    if (remembered) {
+      setLogin((prev) => ({ ...prev, tenantSlug: remembered }));
+    }
+  }, []);
+
+  const derivedTenantSlug = useMemo(() => slugify(signup.tenantName), [signup.tenantName]);
+
   const canSignup = useMemo(
     () =>
       signup.tenantName.trim() &&
-      signup.tenantSlug.trim() &&
+      signup.contactName.trim() &&
       signup.adminEmail.trim() &&
       signup.adminPhone.trim() &&
       signup.password.trim(),
     [signup]
   );
 
-  const canLogin = useMemo(
-    () => login.tenantSlug.trim() && login.email.trim() && login.password.trim(),
-    [login]
-  );
+  const canLogin = useMemo(() => login.email.trim() && login.password.trim(), [login]);
 
   async function handleSignup(e) {
     e.preventDefault();
@@ -62,13 +69,31 @@ export default function OnboardingPage() {
 
     setLoadingSignup(true);
     try {
-      await api.post('/api/onboarding/step1', { ...signup, countryKey: 'IN' }, false);
-      toast.success('Account created. Logging you in.');
+      const tenantSlug = derivedTenantSlug;
+      await api.post(
+        '/api/onboarding/step1',
+        {
+          tenantName: signup.tenantName,
+          tenantSlug,
+          contactName: signup.contactName,
+          adminEmail: signup.adminEmail,
+          adminPhone: signup.adminPhone,
+          password: signup.password,
+          countryKey: 'IN'
+        },
+        false
+      );
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('lastTenantSlug', tenantSlug);
+      }
+
+      toast.success('Workspace created. Logging you in.');
 
       const result = await api.post(
         '/api/auth/login',
         {
-          tenantSlug: signup.tenantSlug,
+          tenantSlug,
           email: signup.adminEmail,
           password: signup.password
         },
@@ -79,7 +104,7 @@ export default function OnboardingPage() {
     } catch (err) {
       const msg = err.message || 'Failed to create account';
       if (msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('already')) {
-        toast.warning('Lab/email already exists. Please use login on the right.');
+        toast.warning('Lab or email already exists. Please login with your existing workspace code.');
       } else {
         toast.error(msg);
       }
@@ -97,7 +122,21 @@ export default function OnboardingPage() {
 
     setLoadingLogin(true);
     try {
-      const result = await api.post('/api/auth/login', login, false);
+      const tenantSlug = slugify(login.tenantSlug);
+      const payload = {
+        email: login.email,
+        password: login.password
+      };
+      if (tenantSlug) {
+        payload.tenantSlug = tenantSlug;
+      }
+
+      const result = await api.post('/api/auth/login', payload, false);
+      if (typeof window !== 'undefined') {
+        if (tenantSlug) {
+          window.localStorage.setItem('lastTenantSlug', tenantSlug);
+        }
+      }
       setSession(result);
       toast.success('Login successful.');
       window.location.href = '/dashboard';
@@ -109,10 +148,11 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 1280, margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: 1240, margin: '0 auto' }}>
       <h1 className="page-title" style={{ marginBottom: 10 }}>Welcome to LIMS</h1>
-      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 8 }}>Create your lab account and start directly. Configuration can be done inside the system.</p>
-      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 20, fontSize: 12 }}>Build: IOS-ONBOARDING-2026-05-05-01</p>
+      <p style={{ marginTop: 0, color: 'var(--color-muted)', marginBottom: 20 }}>
+        Create your lab account and enter the workspace immediately. The system auto-loads a ready demo environment for operations.
+      </p>
 
       <div className="grid-12">
         <div className="span-8">
@@ -123,23 +163,16 @@ export default function OnboardingPage() {
                   label="Lab Name"
                   required
                   value={signup.tenantName}
-                  onChange={(e) => {
-                    const tenantName = e.target.value;
-                    setSignup((prev) => ({
-                      ...prev,
-                      tenantName,
-                      tenantSlug: prev.tenantSlug || slugify(tenantName)
-                    }));
-                  }}
+                  onChange={(e) => setSignup((prev) => ({ ...prev, tenantName: e.target.value }))}
                 />
               </div>
 
               <div className="span-6">
                 <MsInput
-                  label="Lab Slug"
+                  label="Contact Name"
                   required
-                  value={signup.tenantSlug}
-                  onChange={(e) => setSignup((prev) => ({ ...prev, tenantSlug: slugify(e.target.value) }))}
+                  value={signup.contactName}
+                  onChange={(e) => setSignup((prev) => ({ ...prev, contactName: e.target.value }))}
                 />
               </div>
 
@@ -155,7 +188,7 @@ export default function OnboardingPage() {
 
               <div className="span-6">
                 <MsInput
-                  label="Admin Phone"
+                  label="Mobile Number"
                   required
                   value={signup.adminPhone}
                   onChange={(e) => setSignup((prev) => ({ ...prev, adminPhone: e.target.value.replace(/[^0-9]/g, '').slice(0, 12) }))}
@@ -173,7 +206,13 @@ export default function OnboardingPage() {
               </div>
 
               <div className="span-6">
-                <MsInput label="Region" value="India (default)" disabled />
+                <MsInput label="Workspace Code" value={derivedTenantSlug || 'Generated from lab name'} disabled />
+              </div>
+
+              <div className="span-12">
+                <div className="summary-box" style={{ padding: '12px 14px' }}>
+                  Demo users, departments, analyzers, patients, invoices, reports, and audit data will be created automatically for this lab.
+                </div>
               </div>
 
               <div className="span-12">
@@ -189,7 +228,7 @@ export default function OnboardingPage() {
           <MsCard title="Existing User Login" bodyClassName="ms-section">
             <form onSubmit={handleLogin} className="ms-section">
               <MsInput
-                label="Tenant Slug"
+                label="Workspace Code (Optional)"
                 value={login.tenantSlug}
                 onChange={(e) => setLogin((prev) => ({ ...prev, tenantSlug: slugify(e.target.value) }))}
               />
@@ -207,6 +246,10 @@ export default function OnboardingPage() {
                 value={login.password}
                 onChange={(e) => setLogin((prev) => ({ ...prev, password: e.target.value }))}
               />
+
+              <p style={{ marginTop: -4, marginBottom: 4, color: 'var(--color-muted)', fontSize: 13 }}>
+                If your email belongs to one workspace, you can login without entering the workspace code.
+              </p>
 
               <MsButton type="submit" disabled={!canLogin || loadingLogin}>{loadingLogin ? 'Logging in...' : 'Login'}</MsButton>
             </form>

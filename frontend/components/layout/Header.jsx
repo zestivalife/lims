@@ -1,9 +1,63 @@
 'use client';
 
+import { useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { clearSession, getUser } from '@/lib/auth';
+
+const ROUTE_TITLES = {
+  '/dashboard': 'Dashboard',
+  '/new-registration': 'New Registration',
+  '/search-registration': 'Registration Search',
+  '/result-entry': 'Result Entry',
+  '/report-approval': 'Reports Approval',
+  '/billing': 'Billing',
+  '/collection': 'Collection',
+  '/analyzers': 'Analyzers',
+  '/tests-master': 'Tests Master',
+  '/department-master': 'Department Master',
+  '/packages-master': 'Packages Master',
+  '/units-master': 'Units Master',
+  '/admin': 'Admin Panel',
+  '/audit': 'Audit Log',
+  '/help': 'Help',
+  '/patients': 'Patients',
+  '/patient-portal': 'Patient Portal',
+  '/tests': 'Tests & Orders',
+  '/onboarding': 'Welcome to LIMS'
+};
+
+function titleFromPath(pathname = '/') {
+  if (ROUTE_TITLES[pathname]) {
+    return ROUTE_TITLES[pathname];
+  }
+
+  if (pathname.startsWith('/patients/')) {
+    return 'Patient Profile';
+  }
+
+  if (pathname.startsWith('/reports/')) {
+    return 'Report Viewer';
+  }
+
+  if (pathname.startsWith('/tests/results/enter')) {
+    return 'Result Entry';
+  }
+
+  const fallback = pathname
+    .split('/')
+    .filter(Boolean)
+    .pop()
+    ?.replace(/-/g, ' ');
+
+  return fallback
+    ? fallback.replace(/\b\w/g, (char) => char.toUpperCase())
+    : 'LIMS';
+}
 
 export default function Header() {
   const user = getUser();
+  const pathname = usePathname();
+  const pageTitle = useMemo(() => titleFromPath(pathname), [pathname]);
 
   const canGoBack = typeof window !== 'undefined' && window.history.length > 1;
   return (
@@ -23,7 +77,7 @@ export default function Header() {
           →
         </button>
       </div>
-      <div className="header-title">{user?.tenantId ? 'Laboratory Information Management System' : 'LIMS Platform'}</div>
+      <div className="header-title">{pageTitle}</div>
       <div className="header-user-wrap">
         {user ? (
           <div className="header-user-chip">

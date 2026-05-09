@@ -8,6 +8,7 @@ import { normalizePhone } from '../../utils/formatters.js';
 import { requireFields } from '../../utils/validators.js';
 import { getRegionConfig } from '../regions/regionConfig.js';
 import { env } from '../../config/env.js';
+import { ensureTenantBootstrapped } from '../onboarding/bootstrap.js';
 
 function otpGenerator() {
   if (env.otpDemoMode) return '123456';
@@ -94,20 +95,51 @@ export async function verifyEmail(req, res) {
 }
 
 export async function login(req, res) {
-  requireFields(req.body, ['email', 'password', 'tenantSlug']);
+  requireFields(req.body, ['email', 'password']);
 
-  const tenant = await prisma.tenant.findUnique({ where: { slug: req.body.tenantSlug } });
-  if (!tenant) {
-    return res.status(401).json({ message: 'Invalid credentials' });
-  }
+  const tenantSlug = String(req.body.tenantSlug || '').trim();
+  let tenant = null;
+  let user = null;
 
-  const user = await prisma.user.findFirst({
-    where: {
-      tenantId: tenant.id,
-      email: req.body.email,
-      active: true
+  if (tenantSlug) {
+    tenant = await prisma.tenant.findUnique({
+      where: { slug: tenantSlug },
+      include: { region: true }
+    });
+
+    if (!tenant) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
-  });
+
+    user = await prisma.user.findFirst({
+      where: {
+        tenantId: tenant.id,
+        email: req.body.email,
+        active: true
+      }
+    });
+  } else {
+    const matchedUsers = await prisma.user.findMany({
+      where: {
+        email: req.body.email,
+        active: true
+      },
+      include: {
+        tenant: {
+          include: {
+            region: true
+          }
+        }
+      }
+    });
+
+    if (matchedUsers.length !== 1) {
+      return res.status(401).json({ message: 'Enter workspace code to continue' });
+    }
+
+    user = matchedUsers[0];
+    tenant = user.tenant;
+  }
 
   if (!user) {
     return res.status(401).json({ message: 'Invalid credentials' });
@@ -116,6 +148,22 @@ export async function login(req, res) {
   const isValid = await bcrypt.compare(req.body.password, user.passwordHash);
   if (!isValid) {
     return res.status(401).json({ message: 'Invalid credentials' });
+  }
+
+  if (user.role === 'ADMIN') {
+    const [testCount, patientCount, orderCount] = await Promise.all([
+      prisma.testCatalog.count({ where: { tenantId: tenant.id } }),
+      prisma.patient.count({ where: { tenantId: tenant.id } }),
+      prisma.testOrder.count({ where: { tenantId: tenant.id } })
+    ]);
+
+    if (testCount === 0 || patientCount === 0 || orderCount === 0) {
+      await ensureTenantBootstrapped({
+        tenant,
+        region: tenant.region,
+        adminUser: user
+      });
+    }
   }
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });

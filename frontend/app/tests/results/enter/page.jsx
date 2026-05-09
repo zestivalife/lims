@@ -48,8 +48,8 @@ export default function ResultEntryPage() {
   async function saveResults() {
     try {
       await api.post('/api/tests/results/manual', { orderId: order.id, results });
-      await api.put(`/api/tests/orders/${order.id}/status`, { status: 'IN_PROGRESS' });
       toast.success('Results saved and sent to pathologist queue');
+      await loadOrder();
     } catch (e) {
       toast.error(e.message || 'Failed to save results');
     }

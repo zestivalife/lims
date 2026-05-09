@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { clearSession } from '@/lib/auth';
 
 const NAV_TREE = {
   ADMIN: [
@@ -114,7 +115,7 @@ const NAV_TREE = {
       label: 'Admin',
       children: [
         { href: '/audit', label: 'Audit' },
-        { href: '/logout', label: 'Logout' }
+        { id: 'logout', label: 'Logout', action: 'logout' }
       ]
     }
   ],
@@ -167,21 +168,41 @@ const NAV_TREE = {
   ]
 };
 
-function normalize(path = '') {
+function normalizePath(path = '') {
   return path.split('?')[0] || '/';
 }
 
-function nodeIsActive(node, pathname) {
-  if (node.href) {
-    return normalize(node.href) === normalize(pathname);
-  }
-  return (node.children || []).some((child) => nodeIsActive(child, pathname));
+function normalizeFullPath(path = '') {
+  if (!path) return '/';
+  const [base, query = ''] = path.split('?');
+  const queryParts = query
+    .split('&')
+    .filter(Boolean)
+    .sort()
+    .join('&');
+  return queryParts ? `${base}?${queryParts}` : base;
 }
 
-function NavNode({ node, pathname, level = 0, openMap, onToggle }) {
+function nodeIsActive(node, currentRoute) {
+  if (node.href) {
+    const nodeBasePath = normalizePath(node.href);
+    const currentBasePath = normalizePath(currentRoute);
+
+    if (node.href.includes('?')) {
+      return normalizeFullPath(node.href) === normalizeFullPath(currentRoute);
+    }
+
+    return nodeBasePath === currentBasePath;
+  }
+  return (node.children || []).some((child) => nodeIsActive(child, currentRoute));
+}
+
+function NavNode({ node, currentRoute, level = 0, openMap, onToggle }) {
   const hasChildren = Array.isArray(node.children) && node.children.length > 0;
   const isOpen = openMap[node.id] ?? false;
-  const active = nodeIsActive(node, pathname);
+  const active = nodeIsActive(node, currentRoute);
+  const panelId = node.id ? `nav-panel-${node.id}` : undefined;
+  const triggerId = node.id ? `nav-trigger-${node.id}` : undefined;
 
   if (hasChildren) {
     return (
@@ -190,16 +211,30 @@ function NavNode({ node, pathname, level = 0, openMap, onToggle }) {
           type="button"
           className={`nav-group-btn ${isOpen ? 'open' : ''} ${active ? 'active' : ''}`}
           onClick={() => onToggle(node.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onToggle(node.id);
+            }
+          }}
+          id={triggerId}
+          aria-expanded={isOpen}
+          aria-controls={panelId}
         >
           <span>{node.label}</span>
           <span className="nav-chevron">▾</span>
         </button>
-        <div className={`nav-children ${isOpen ? 'open' : ''}`}>
+        <div
+          id={panelId}
+          role="group"
+          aria-labelledby={triggerId}
+          className={`nav-children ${isOpen ? 'open' : ''}`}
+        >
           {node.children.map((child) => (
             <NavNode
               key={child.id || child.href}
               node={child}
-              pathname={pathname}
+              currentRoute={currentRoute}
               level={level + 1}
               openMap={openMap}
               onToggle={onToggle}
@@ -207,6 +242,23 @@ function NavNode({ node, pathname, level = 0, openMap, onToggle }) {
           ))}
         </div>
       </div>
+    );
+  }
+
+  if (node.action === 'logout') {
+    return (
+      <button
+        type="button"
+        className={`nav-link nav-level-${level}`}
+        onClick={() => {
+          clearSession();
+          if (typeof window !== 'undefined') {
+            window.location.href = '/onboarding';
+          }
+        }}
+      >
+        {node.label}
+      </button>
     );
   }
 
@@ -219,52 +271,103 @@ function NavNode({ node, pathname, level = 0, openMap, onToggle }) {
 
 export default function Sidebar({ role = 'ADMIN' }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const tree = NAV_TREE[role] || NAV_TREE.ADMIN;
+  const currentRoute = useMemo(() => {
+    const query = searchParams?.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }, [pathname, searchParams]);
+
+  const initialSectionOpen = useMemo(() => {
+    const state = {};
+    tree.forEach((section, index) => {
+      state[section.id] =
+        section.children.some((node) => nodeIsActive(node, currentRoute)) || index === 0 || section.id === 'patient';
+    });
+    return state;
+  }, [tree, currentRoute]);
 
   const initialOpen = useMemo(() => {
     const state = {};
     const walk = (nodes) => {
       nodes.forEach((node) => {
         if (node.children) {
-          state[node.id] = nodeIsActive(node, pathname) || node.id === 'operations' || node.id === 'patient';
+          state[node.id] = nodeIsActive(node, currentRoute) || node.id === 'operations' || node.id === 'patient';
           walk(node.children);
         }
       });
     };
     walk(tree);
     return state;
-  }, [tree, pathname]);
+  }, [tree, currentRoute]);
 
   const [openMap, setOpenMap] = useState(initialOpen);
+  const [sectionOpenMap, setSectionOpenMap] = useState(initialSectionOpen);
 
   useEffect(() => {
     setOpenMap(initialOpen);
   }, [initialOpen]);
 
+  useEffect(() => {
+    setSectionOpenMap(initialSectionOpen);
+  }, [initialSectionOpen]);
+
   const toggle = (id) => {
     setOpenMap((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleSection = (id) => {
+    setSectionOpenMap((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
-    <aside className="sidebar ios-glass">
+    <aside className="sidebar ios-glass" aria-label="Primary navigation">
       <div className="sidebar-logo">LIMS</div>
       <div className="sidebar-tree">
-        {tree.map((section) => (
-          <div key={section.id} className="sidebar-section-block">
-            <div className="sidebar-section">{section.label}</div>
-            <div className="sidebar-section-items">
-              {section.children.map((node) => (
-                <NavNode
-                  key={node.id || node.href}
-                  node={node}
-                  pathname={pathname}
-                  openMap={openMap}
-                  onToggle={toggle}
-                />
-              ))}
+        {tree.map((section) => {
+          const sectionActive = section.children.some((node) => nodeIsActive(node, currentRoute));
+          const sectionOpen = sectionOpenMap[section.id] ?? false;
+          const sectionPanelId = `sidebar-section-panel-${section.id}`;
+          const sectionTriggerId = `sidebar-section-trigger-${section.id}`;
+
+          return (
+            <div key={section.id} className={`sidebar-section-block ${sectionActive ? 'active-trail' : ''}`}>
+              <button
+                type="button"
+                className={`sidebar-section-toggle ${sectionOpen ? 'open' : ''} ${sectionActive ? 'active' : ''}`}
+                id={sectionTriggerId}
+                aria-expanded={sectionOpen}
+                aria-controls={sectionPanelId}
+                onClick={() => toggleSection(section.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggleSection(section.id);
+                  }
+                }}
+              >
+                <span className="sidebar-section-label">{section.label}</span>
+                <span className="sidebar-section-chevron">▾</span>
+              </button>
+              <div
+                id={sectionPanelId}
+                role="group"
+                aria-labelledby={sectionTriggerId}
+                className={`sidebar-section-items ${sectionOpen ? 'open' : ''}`}
+              >
+                {section.children.map((node) => (
+                  <NavNode
+                    key={node.id || node.href}
+                    node={node}
+                    currentRoute={currentRoute}
+                    openMap={openMap}
+                    onToggle={toggle}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </aside>
   );

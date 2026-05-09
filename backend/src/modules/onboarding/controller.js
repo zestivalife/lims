@@ -1,11 +1,11 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma.js';
-import { encryptField } from '../../utils/encryption.js';
 import { requireFields } from '../../utils/validators.js';
 import { getRegionConfig, listRegionConfigs } from '../regions/regionConfig.js';
+import { ensureTenantBootstrapped } from './bootstrap.js';
 
 export async function step1(req, res) {
-  requireFields(req.body, ['tenantName', 'tenantSlug', 'adminEmail', 'adminPhone', 'password', 'countryKey']);
+  requireFields(req.body, ['tenantName', 'adminEmail', 'adminPhone', 'password', 'countryKey']);
 
   const cfg = getRegionConfig(req.body.countryKey);
   const region = await prisma.region.upsert({
@@ -37,13 +37,22 @@ export async function step1(req, res) {
     }
   });
 
+  const tenantSlug = String(req.body.tenantSlug || req.body.tenantName || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+
   const tenant = await prisma.tenant.create({
     data: {
       name: req.body.tenantName,
-      slug: req.body.tenantSlug,
+      slug: tenantSlug,
       plan: req.body.plan || 'STARTER',
       regionId: region.id,
-      onboardingStep: 1
+      onboardingStep: 1,
+      branchName: req.body.tenantName,
+      branchAddress: 'Primary branch - to be configured'
     }
   });
 
@@ -54,15 +63,22 @@ export async function step1(req, res) {
       phone: req.body.adminPhone,
       passwordHash: await bcrypt.hash(req.body.password, 12),
       role: 'ADMIN',
-      isVerified: false
+      isVerified: true
     }
   });
 
+  const bootstrap = await ensureTenantBootstrapped({
+    tenant,
+    region,
+    adminUser: user
+  });
+
   res.status(201).json({
-    message: 'Step 1 completed',
+    message: 'Account created and workspace bootstrapped',
     tenantId: tenant.id,
     userId: user.id,
-    step: 1
+    step: 1,
+    bootstrap
   });
 }
 

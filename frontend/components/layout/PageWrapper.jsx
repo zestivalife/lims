@@ -15,7 +15,7 @@ export default function PageWrapper({ children }) {
         <Sidebar role={role} />
         <section>
           <Header />
-          <main className="page">{children}</main>
+          <main className="page page-has-shell-title">{children}</main>
         </section>
       </div>
     </AuthGate>
