@@ -16,6 +16,50 @@ const COLLECTION_METHODS = ['By Hand', 'Home Collection'];
 const SAMPLE_TYPES = ['Blood', 'Serum', 'Plasma', 'Urine', 'Stool', 'Swab'];
 const PAYMENT_METHODS = ['CASH', 'UPI', 'CARD', 'CREDIT'];
 
+function buildTestBarcodeValue({ mobile, testCode, testId, index }) {
+  const phoneKey = String(mobile || '').replace(/\D/g, '').slice(-6) || '000000';
+  const codeKey = String(testCode || `T${testId || index + 1}`)
+    .replace(/[^A-Z0-9]/gi, '')
+    .toUpperCase()
+    .slice(0, 8) || 'TEST';
+  return `LB${phoneKey}${codeKey}${String(index + 1).padStart(2, '0')}`;
+}
+
+function MiniBarcode({ value }) {
+  const bars = useMemo(() => {
+    const raw = String(value || '').trim() || 'LIMS';
+    const start = [1, 1, 0, 1, 0, 0, 1, 1];
+    const end = [1, 1, 0, 0, 1, 0, 1, 1];
+    const body = raw
+      .split('')
+      .flatMap((char) => {
+        const bin = char.charCodeAt(0).toString(2).padStart(8, '0').split('').map(Number);
+        return [0, ...bin, 1];
+      });
+    return [...start, ...body, ...end];
+  }, [value]);
+
+  const width = Math.max(bars.length * 2, 120);
+
+  return (
+    <div className="barcode-stack">
+      <svg
+        className="barcode-svg"
+        viewBox={`0 0 ${width} 42`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`Barcode ${value}`}
+      >
+        <rect x="0" y="0" width={width} height="42" fill="white" />
+        {bars.map((bar, index) =>
+          bar ? <rect key={`${value}-${index}`} x={index * 2} y="2" width="2" height="30" fill="#111111" /> : null
+        )}
+      </svg>
+      <span className="barcode-text">{value}</span>
+    </div>
+  );
+}
+
 const emptyPatientForm = {
   dateTime: '',
   labName: 'Main Lab - India',
@@ -142,6 +186,21 @@ export default function NewRegistrationPage() {
 
   const selectedTests = useMemo(() => Object.values(selectedTestMap), [selectedTestMap]);
   const calculatedAge = useMemo(() => calculateAgeFromDob(patientForm.dob), [patientForm.dob]);
+  const barcodeEntries = useMemo(
+    () =>
+      selectedTests.map((test, index) => ({
+        id: test.id,
+        name: test.name,
+        sampleType: test.sampleType,
+        value: buildTestBarcodeValue({
+          mobile: patientForm.mobile,
+          testCode: test.code,
+          testId: test.id,
+          index
+        })
+      })),
+    [patientForm.mobile, selectedTests]
+  );
 
   const subtotal = useMemo(
     () => selectedTests.reduce((sum, row) => sum + Number(row.charge || 0), 0),
@@ -658,6 +717,28 @@ export default function NewRegistrationPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="span-12">
+                <div className="barcode-panel">
+                  <div className="barcode-panel-head">
+                    <span className="barcode-panel-title">Sample Barcodes</span>
+                    <span className="barcode-panel-meta">{barcodeEntries.length} label(s)</span>
+                  </div>
+                  {barcodeEntries.length === 0 ? (
+                    <div className="barcode-empty">Select tests to generate barcode labels.</div>
+                  ) : (
+                    <div className="barcode-grid">
+                      {barcodeEntries.map((entry) => (
+                        <div key={entry.id} className="barcode-card">
+                          <div className="barcode-card-title">{entry.name}</div>
+                          <div className="barcode-card-subtitle">{entry.sampleType}</div>
+                          <MiniBarcode value={entry.value} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="span-4"><MsInput label="Total" value={subtotal.toFixed(2)} readOnly /></div>

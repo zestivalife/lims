@@ -523,6 +523,77 @@ a {
   color: #36363c;
 }
 
+.barcode-panel {
+  border: 1px solid var(--ios-divider);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 12px;
+}
+
+.barcode-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.barcode-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5d5d64;
+}
+
+.barcode-panel-meta,
+.barcode-empty,
+.barcode-card-subtitle,
+.barcode-text {
+  color: var(--ios-subtle);
+  font-size: 12px;
+}
+
+.barcode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
+  gap: 10px;
+}
+
+.barcode-card {
+  border: 1px solid rgba(60, 60, 67, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  padding: 10px;
+}
+
+.barcode-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ios-text);
+  margin-bottom: 2px;
+}
+
+.barcode-stack {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.barcode-svg {
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(60, 60, 67, 0.08);
+}
+
+.barcode-text {
+  font-family: 'SF Mono', ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+}
+
 .ms-btn-danger {
   background: linear-gradient(135deg, #ff6d64, #ff3b30);
   color: #fff;
