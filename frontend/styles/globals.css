@@ -1006,6 +1006,21 @@ a {
   font-weight: 700;
 }
 
+.service-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.service-barcode-trigger {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  font-size: 14px;
+}
+
 .result-action-bar {
   position: sticky;
   bottom: 8px;

@@ -6,6 +6,7 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import MsCard from '@/components/ui/MsCard';
 import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
+import MsModal from '@/components/ui/MsModal';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/ToastProvider';
 
@@ -93,6 +94,87 @@ function statusClass(status) {
   return 'authenticated';
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function reportHeaderMarkup(order) {
+  const patientName = formatPatientName(order?.patient);
+  const gender = order?.patient?.gender || '-';
+  const reportedOn = formatOrderDate(order) || '-';
+  return `
+    <section class="report-header-card">
+      <div class="report-header-grid">
+        <div class="report-header-meta">
+          <div><strong>Name</strong><span>${escapeHtml(patientName)}</span></div>
+          <div><strong>Age/Sex</strong><span>${escapeHtml(gender)}</span></div>
+          <div><strong>Patient ID</strong><span>${escapeHtml(order?.patient?.mrn || '-')}</span></div>
+          <div><strong>Reg No</strong><span>${escapeHtml(order?.id?.slice(-8).toUpperCase() || '-')}</span></div>
+          <div><strong>Ref. By</strong><span>${escapeHtml(order?.patient?.insuranceId || 'Self')}</span></div>
+        </div>
+        <div class="report-header-dates">
+          <div><strong>Registered on</strong><span>${escapeHtml(reportedOn)}</span></div>
+          <div><strong>Received on</strong><span>${escapeHtml(reportedOn)}</span></div>
+          <div><strong>Reported on</strong><span>${escapeHtml(reportedOn)}</span></div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function reportSectionMarkup(sectionTitle, rows) {
+  return `
+    <section class="report-section">
+      <h2>${escapeHtml(sectionTitle)}</h2>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>Test Description</th>
+            <th>Result</th>
+            <th>Unit</th>
+            <th>Biological Reference Range</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td class="test-name ${row.abnormal ? 'abnormal' : ''}">${escapeHtml(row.investigation)}</td>
+              <td class="${row.abnormal ? 'abnormal' : ''}">${escapeHtml(row.value || '-')}</td>
+              <td>${escapeHtml(row.unit || '-')}</td>
+              <td>${escapeHtml(row.referenceRange || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+function barcodeSvgMarkup(value) {
+  const raw = String(value || '').trim() || 'LIMS';
+  const start = [1, 1, 0, 1, 0, 0, 1, 1];
+  const end = [1, 1, 0, 0, 1, 0, 1, 1];
+  const body = raw
+    .split('')
+    .flatMap((char) => {
+      const bin = char.charCodeAt(0).toString(2).padStart(8, '0').split('').map(Number);
+      return [0, ...bin, 1];
+    });
+  const bars = [...start, ...body, ...end];
+  const width = Math.max(bars.length * 2, 120);
+  return `
+    <svg viewBox="0 0 ${width} 42" preserveAspectRatio="none" role="img" aria-label="Barcode ${escapeHtml(value)}">
+      <rect x="0" y="0" width="${width}" height="42" fill="white"></rect>
+      ${bars.map((bar, index) => (bar ? `<rect x="${index * 2}" y="2" width="2" height="30" fill="#111111"></rect>` : '')).join('')}
+    </svg>
+  `;
+}
+
 function ResultEntryInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -111,6 +193,7 @@ function ResultEntryInner() {
   const [patientSearch, setPatientSearch] = useState('');
   const [remarkSearch, setRemarkSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
 
   async function loadQueue() {
     try {
@@ -208,6 +291,18 @@ function ResultEntryInner() {
       .filter(Boolean);
   }, [orders, selectedServices]);
 
+  const selectedQueueServices = useMemo(() => {
+    return Object.entries(selectedServices)
+      .filter(([, checked]) => checked)
+      .map(([key]) => {
+        const [selectedOrderId, selectedResultId] = key.split(':');
+        const selectedOrder = orders.find((item) => item.id === selectedOrderId);
+        const selectedResult = selectedOrder?.results?.find((item) => item.id === selectedResultId);
+        return selectedOrder && selectedResult ? { order: selectedOrder, result: selectedResult } : null;
+      })
+      .filter(Boolean);
+  }, [orders, selectedServices]);
+
   const metrics = useMemo(() => {
     const total = orders.length;
     const completed = orders.filter((item) => item.status === 'COMPLETED').length;
@@ -236,6 +331,137 @@ function ResultEntryInner() {
     const selectedOrder = orders.find((item) => item.id === selectedOrderId);
     const selectedResult = selectedOrder?.results?.find((item) => item.id === selectedResultId);
     return selectedOrder && selectedResult ? { order: selectedOrder, result: selectedResult } : null;
+  }
+
+  function buildReportRows(result) {
+    const selectedName = result?.testCatalog?.name || result?.testCatalog?.code || 'Test';
+    const isLft = /liver|lft/i.test(selectedName);
+    if (isLft) {
+      return LFT_PARAMETERS.map((item, index) => {
+        const value = index === 0 ? (result?.value || item.value) : item.value;
+        return {
+          investigation: item.name,
+          value,
+          unit: item.unit,
+          referenceRange: item.range,
+          abnormal: isAbnormal(value, item.range)
+        };
+      });
+    }
+    const referenceRange = result?.referenceRange || result?.testCatalog?.normalRangeMale || result?.testCatalog?.normalRangeFemale || '';
+    return [{
+      investigation: selectedName,
+      value: result?.value || '',
+      unit: result?.unit || result?.testCatalog?.unit || '',
+      referenceRange,
+      abnormal: isAbnormal(result?.value, referenceRange)
+    }];
+  }
+
+  function openPrintWindow(title, bodyMarkup) {
+    const popup = window.open('', '_blank', 'width=1100,height=900');
+    if (!popup) {
+      toast.error('Enable popups to print this document');
+      return;
+    }
+    popup.document.write(`
+      <html>
+        <head>
+          <title>${escapeHtml(title)}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; color: #111827; }
+            .report-page { page-break-after: always; margin-bottom: 24px; }
+            .report-page:last-child { page-break-after: auto; }
+            .report-header-card { border: 2px solid #111827; border-radius: 16px; padding: 20px 24px; margin-bottom: 18px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12); }
+            .report-header-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; }
+            .report-header-meta div, .report-header-dates div { display: grid; grid-template-columns: 140px 1fr; gap: 12px; margin-bottom: 10px; }
+            .report-section h2 { margin: 18px 0 12px; text-align: center; font-size: 28px; text-transform: uppercase; text-decoration: underline; }
+            .report-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+            .report-table th { padding: 12px; border: 2px solid #111827; background: #eef6ff; text-align: left; }
+            .report-table td { padding: 10px 12px; border-bottom: 1px solid #d1d5db; vertical-align: top; }
+            .test-name { font-weight: 600; }
+            .abnormal { color: #dc2626; font-weight: 700; }
+            .barcode-print-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+            .barcode-print-card { border: 1px solid #cbd5e1; border-radius: 16px; padding: 18px; }
+            .barcode-print-card svg { width: 100%; height: 52px; display: block; }
+            .barcode-print-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+            .barcode-print-subtitle { font-size: 13px; color: #475569; margin-bottom: 10px; }
+            .barcode-print-text { text-align: center; font-family: ui-monospace, SFMono-Regular, monospace; letter-spacing: 0.16em; margin-top: 8px; }
+            @media print { body { margin: 12px; } }
+          </style>
+        </head>
+        <body>${bodyMarkup}</body>
+      </html>
+    `);
+    popup.document.close();
+    popup.focus();
+    setTimeout(() => popup.print(), 250);
+  }
+
+  function printSelectedQueueReports() {
+    if (!selectedQueueServices.length) {
+      toast.warning('Select one or more services to print');
+      return;
+    }
+    const grouped = selectedQueueServices.reduce((acc, entry) => {
+      if (!acc[entry.order.id]) acc[entry.order.id] = { order: entry.order, sections: [] };
+      acc[entry.order.id].sections.push({
+        title: entry.result.testCatalog?.name || entry.result.testCatalog?.code || 'Test',
+        rows: buildReportRows(entry.result)
+      });
+      return acc;
+    }, {});
+    const markup = Object.values(grouped).map(({ order, sections }) => `
+      <div class="report-page">
+        ${reportHeaderMarkup(order)}
+        ${sections.map((section) => reportSectionMarkup(section.title, section.rows)).join('')}
+      </div>
+    `).join('');
+    openPrintWindow('Result Report', markup);
+  }
+
+  function printCurrentDetailedReport() {
+    if (!order || !rows.length) {
+      toast.warning('No report rows available to print');
+      return;
+    }
+    const title = order?.results?.find((item) => item.id === testId)?.testCatalog?.name || rows[0]?.investigation || 'Result Report';
+    openPrintWindow('Result Report', `
+      <div class="report-page">
+        ${reportHeaderMarkup(order)}
+        ${reportSectionMarkup(title, rows)}
+      </div>
+    `);
+  }
+
+  function openBarcodePopup() {
+    if (!selectedBarcodeEntries.length) {
+      toast.warning('Select one or more services to generate barcodes');
+      return;
+    }
+    setBarcodeModalOpen(true);
+  }
+
+  function printBarcodePopup() {
+    if (!selectedBarcodeEntries.length) {
+      toast.warning('No barcode labels available to print');
+      return;
+    }
+    const markup = `
+      <div class="report-page">
+        <div class="barcode-print-grid">
+          ${selectedBarcodeEntries.map((entry) => `
+            <div class="barcode-print-card">
+              <div class="barcode-print-title">${escapeHtml(entry.name)}</div>
+              <div class="barcode-print-subtitle">${escapeHtml(entry.patient)} · ${escapeHtml(entry.sampleType)}</div>
+              ${barcodeSvgMarkup(entry.value)}
+              <div class="barcode-print-text">${escapeHtml(entry.value)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    openPrintWindow('Barcode Labels', markup);
   }
 
   function openSelectedResult() {
@@ -274,7 +500,7 @@ function ResultEntryInner() {
       await api.post('/api/tests/results/manual', { orderId: order.id, results: payloadRows });
       toast.success(printAfter ? 'Results saved. Print preview ready.' : 'Results saved');
       await loadQueue();
-      if (printAfter) window.print();
+      if (printAfter) printCurrentDetailedReport();
     } catch (error) {
       toast.error(error.message || 'Failed to save results');
     }
@@ -405,7 +631,14 @@ function ResultEntryInner() {
                 <th>Corporate</th>
                 <th>Patient UID</th>
                 <th>Lab No.</th>
-                <th>Services</th>
+                <th>
+                  <div className="service-head">
+                    <span>Services</span>
+                    <button type="button" className="icon-btn service-barcode-trigger" title="Generate barcode" onClick={openBarcodePopup}>
+                      ▥
+                    </button>
+                  </div>
+                </th>
                 <th>Ref.By</th>
                 <th>Date</th>
                 <th>S.Taken</th>
@@ -444,15 +677,9 @@ function ResultEntryInner() {
 
         <div className="result-action-bar">
           <MsButton type="button" onClick={openSelectedResult}>Result</MsButton>
-          <MsButton type="button" variant="secondary" onClick={() => {
-            if (!selectedBarcodeEntries.length) {
-              toast.warning('Select one or more services to generate barcodes');
-              return;
-            }
-            toast.success(`${selectedBarcodeEntries.length} barcode label(s) ready`);
-          }}>Bar Code</MsButton>
+          <MsButton type="button" variant="secondary" onClick={openBarcodePopup}>Bar Code</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Queue saved')}>Save</MsButton>
-          <MsButton type="button" variant="secondary" onClick={() => window.print()}>Print</MsButton>
+          <MsButton type="button" variant="secondary" onClick={printSelectedQueueReports}>Print</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Email queued')}>Email</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('WhatsApp queued')}>WhatsApp</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Download started')}>Download</MsButton>
@@ -460,25 +687,31 @@ function ResultEntryInner() {
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Direct WhatsApp to doctor queued')}>Direct WA to Doctor</MsButton>
         </div>
 
-        <div className="barcode-panel">
-          <div className="barcode-panel-head">
-            <span className="barcode-panel-title">Result Page Barcodes</span>
-            <span className="barcode-panel-meta">{selectedBarcodeEntries.length} label(s)</span>
-          </div>
-          {selectedBarcodeEntries.length === 0 ? (
-            <div className="barcode-empty">Select services from the queue to generate test-wise barcode labels.</div>
-          ) : (
-            <div className="barcode-grid">
-              {selectedBarcodeEntries.map((entry) => (
-                <div key={entry.id} className="barcode-card">
-                  <div className="barcode-card-title">{entry.name}</div>
-                  <div className="barcode-card-subtitle">{entry.patient} · {entry.sampleType}</div>
-                  <MiniBarcode value={entry.value} />
-                </div>
-              ))}
+        <MsModal open={barcodeModalOpen} title="Service Barcodes" onClose={() => setBarcodeModalOpen(false)}>
+          <div className="barcode-panel">
+            <div className="barcode-panel-head">
+              <span className="barcode-panel-title">Result Page Barcodes</span>
+              <span className="barcode-panel-meta">{selectedBarcodeEntries.length} label(s)</span>
             </div>
-          )}
-        </div>
+            {selectedBarcodeEntries.length === 0 ? (
+              <div className="barcode-empty">Select services from the queue to generate test-wise barcode labels.</div>
+            ) : (
+              <div className="barcode-grid">
+                {selectedBarcodeEntries.map((entry) => (
+                  <div key={entry.id} className="barcode-card">
+                    <div className="barcode-card-title">{entry.name}</div>
+                    <div className="barcode-card-subtitle">{entry.patient} · {entry.sampleType}</div>
+                    <MiniBarcode value={entry.value} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="ms-actions" style={{ marginTop: 16 }}>
+            <MsButton variant="secondary" type="button" onClick={() => setBarcodeModalOpen(false)}>Close</MsButton>
+            <MsButton type="button" onClick={printBarcodePopup}>Print</MsButton>
+          </div>
+        </MsModal>
       </MsCard>
     </PageWrapper>
   );
