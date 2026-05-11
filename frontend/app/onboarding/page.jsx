@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { setSession } from '@/lib/auth';
 import MsCard from '@/components/ui/MsCard';
@@ -17,8 +17,7 @@ const defaultSignup = {
 };
 
 const defaultLogin = {
-  tenantSlug: '',
-  email: '',
+  identifier: '',
   password: ''
 };
 
@@ -38,14 +37,6 @@ export default function OnboardingPage() {
   const [loadingLogin, setLoadingLogin] = useState(false);
   const toast = useToast();
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const remembered = window.localStorage.getItem('lastTenantSlug') || '';
-    if (remembered) {
-      setLogin((prev) => ({ ...prev, tenantSlug: remembered }));
-    }
-  }, []);
-
   const derivedTenantSlug = useMemo(() => slugify(signup.tenantName), [signup.tenantName]);
 
   const canSignup = useMemo(
@@ -58,7 +49,7 @@ export default function OnboardingPage() {
     [signup]
   );
 
-  const canLogin = useMemo(() => login.email.trim() && login.password.trim(), [login]);
+  const canLogin = useMemo(() => login.identifier.trim() && login.password.trim(), [login]);
 
   async function handleSignup(e) {
     e.preventDefault();
@@ -94,6 +85,7 @@ export default function OnboardingPage() {
         '/api/auth/login',
         {
           tenantSlug,
+          identifier: signup.adminEmail,
           email: signup.adminEmail,
           password: signup.password
         },
@@ -104,7 +96,7 @@ export default function OnboardingPage() {
     } catch (err) {
       const msg = err.message || 'Failed to create account';
       if (msg.toLowerCase().includes('unique') || msg.toLowerCase().includes('already')) {
-        toast.warning('Lab or email already exists. Please login with your existing workspace code.');
+        toast.warning('Lab or email already exists. Please login with your email/mobile and password.');
       } else {
         toast.error(msg);
       }
@@ -122,21 +114,14 @@ export default function OnboardingPage() {
 
     setLoadingLogin(true);
     try {
-      const tenantSlug = slugify(login.tenantSlug);
       const payload = {
-        email: login.email,
+        identifier: login.identifier,
+        email: login.identifier,
+        phone: login.identifier,
         password: login.password
       };
-      if (tenantSlug) {
-        payload.tenantSlug = tenantSlug;
-      }
 
       const result = await api.post('/api/auth/login', payload, false);
-      if (typeof window !== 'undefined') {
-        if (tenantSlug) {
-          window.localStorage.setItem('lastTenantSlug', tenantSlug);
-        }
-      }
       setSession(result);
       toast.success('Login successful.');
       window.location.href = '/dashboard';
@@ -205,13 +190,9 @@ export default function OnboardingPage() {
                 />
               </div>
 
-              <div className="span-6">
-                <MsInput label="Workspace Code" value={derivedTenantSlug || 'Generated from lab name'} disabled />
-              </div>
-
               <div className="span-12">
                 <div className="summary-box" style={{ padding: '12px 14px' }}>
-                  Demo users, departments, analyzers, patients, invoices, reports, and audit data will be created automatically for this lab.
+                  Workspace will be created automatically as <strong>{derivedTenantSlug || 'your-lab-name'}</strong>. Demo users, departments, analyzers, patients, invoices, reports, and audit data will be loaded immediately.
                 </div>
               </div>
 
@@ -228,16 +209,9 @@ export default function OnboardingPage() {
           <MsCard title="Existing User Login" bodyClassName="ms-section">
             <form onSubmit={handleLogin} className="ms-section">
               <MsInput
-                label="Workspace Code (Optional)"
-                value={login.tenantSlug}
-                onChange={(e) => setLogin((prev) => ({ ...prev, tenantSlug: slugify(e.target.value) }))}
-              />
-
-              <MsInput
-                label="Email"
-                type="email"
-                value={login.email}
-                onChange={(e) => setLogin((prev) => ({ ...prev, email: e.target.value }))}
+                label="Email or Mobile Number"
+                value={login.identifier}
+                onChange={(e) => setLogin((prev) => ({ ...prev, identifier: e.target.value }))}
               />
 
               <MsInput
@@ -248,7 +222,7 @@ export default function OnboardingPage() {
               />
 
               <p style={{ marginTop: -4, marginBottom: 4, color: 'var(--color-muted)', fontSize: 13 }}>
-                If your email belongs to one workspace, you can login without entering the workspace code.
+                Use your registered email or mobile number. Workspace selection is handled automatically.
               </p>
 
               <MsButton type="submit" disabled={!canLogin || loadingLogin}>{loadingLogin ? 'Logging in...' : 'Login'}</MsButton>

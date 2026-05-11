@@ -25,9 +25,7 @@ const emptyPatientForm = {
   firstName: '',
   lastName: '',
   email: '',
-  ageYears: '',
-  ageMonths: '',
-  ageDays: '',
+  dob: '',
   gender: 'MALE',
   referralDoctor: 'Self Referral',
   address: '',
@@ -45,13 +43,32 @@ function formatDateTimeLocal(now = new Date()) {
   return `${day}/${month}/${year} ${hour}:${minute}`;
 }
 
-function toDobFromAge(years, months, days) {
-  const y = Number(years || 0);
-  const m = Number(months || 0);
-  const d = Number(days || 0);
-  const now = new Date();
-  const dob = new Date(now.getFullYear() - y, now.getMonth() - m, now.getDate() - d);
-  return dob.toISOString().slice(0, 10);
+function calculateAgeFromDob(dob) {
+  if (!dob) return { label: 'Select DOB', years: 0, months: 0, days: 0, valid: false };
+  const birth = new Date(`${dob}T00:00:00`);
+  const today = new Date();
+  if (Number.isNaN(birth.getTime()) || birth > today) {
+    return { label: 'Invalid DOB', years: 0, months: 0, days: 0, valid: false };
+  }
+
+  let years = today.getFullYear() - birth.getFullYear();
+  let months = today.getMonth() - birth.getMonth();
+  let days = today.getDate() - birth.getDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const label = years > 0
+    ? `${years}Y ${months}M ${days}D`
+    : months > 0
+      ? `${months}M ${days}D`
+      : `${days}D`;
+  return { label, years, months, days, valid: true };
 }
 
 export default function NewRegistrationPage() {
@@ -124,6 +141,7 @@ export default function NewRegistrationPage() {
   }, [catalog, department, testSearch]);
 
   const selectedTests = useMemo(() => Object.values(selectedTestMap), [selectedTestMap]);
+  const calculatedAge = useMemo(() => calculateAgeFromDob(patientForm.dob), [patientForm.dob]);
 
   const subtotal = useMemo(
     () => selectedTests.reduce((sum, row) => sum + Number(row.charge || 0), 0),
@@ -252,6 +270,7 @@ export default function NewRegistrationPage() {
       lastName: last,
       email: existing.email || '',
       address: existing.address || '',
+      dob: existing.dob ? String(existing.dob).slice(0, 10) : prev.dob,
       gender: existing.gender || prev.gender
     }));
     toast.info('Existing patient loaded from mobile number');
@@ -277,14 +296,9 @@ export default function NewRegistrationPage() {
   function validateForm() {
     if (!patientForm.mobile.trim()) return 'Mobile number is required';
     if (!patientForm.firstName.trim()) return 'First name is required';
+    if (!patientForm.dob) return 'Date of birth is required';
+    if (!calculatedAge.valid) return 'Date of birth must be valid and not in the future';
     if (selectedTests.length < 1) return 'At least one test must be selected';
-
-    const years = Number(patientForm.ageYears || 0);
-    const months = Number(patientForm.ageMonths || 0);
-    const days = Number(patientForm.ageDays || 0);
-    if (years < 0 || months < 0 || days < 0) return 'Age values cannot be negative';
-    if (months > 11) return 'Months must be 0-11';
-    if (days > 31) return 'Days must be 0-31';
 
     const discountNum = Number(discountPercent || 0);
     if (Number.isNaN(discountNum) || discountNum < 0) return 'Discount must be valid';
@@ -309,7 +323,7 @@ export default function NewRegistrationPage() {
     try {
       const user = getUser();
       const fullName = [patientForm.firstName, patientForm.lastName].filter(Boolean).join(' ').trim();
-      const dob = toDobFromAge(patientForm.ageYears, patientForm.ageMonths, patientForm.ageDays);
+      const dob = patientForm.dob;
 
       let patientId = existingPatientId;
       if (!patientId) {
@@ -457,26 +471,18 @@ export default function NewRegistrationPage() {
                 />
               </div>
 
-              <div className="span-2">
+              <div className="span-3">
                 <MsInput
-                  label="Age (Y)"
-                  value={patientForm.ageYears}
-                  onChange={(e) => setPatientForm((prev) => ({ ...prev, ageYears: e.target.value.replace(/[^0-9]/g, '').slice(0, 3) }))}
+                  label="Date of Birth *"
+                  type="date"
+                  value={patientForm.dob}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setPatientForm((prev) => ({ ...prev, dob: e.target.value }))}
                 />
               </div>
-              <div className="span-2">
-                <MsInput
-                  label="Age (M)"
-                  value={patientForm.ageMonths}
-                  onChange={(e) => setPatientForm((prev) => ({ ...prev, ageMonths: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) }))}
-                />
-              </div>
-              <div className="span-2">
-                <MsInput
-                  label="Age (D)"
-                  value={patientForm.ageDays}
-                  onChange={(e) => setPatientForm((prev) => ({ ...prev, ageDays: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) }))}
-                />
+              <div className="span-3">
+                <label className="ms-label">Calculated Age</label>
+                <div className={`age-display ${calculatedAge.valid ? 'ok' : ''}`}>{calculatedAge.label}</div>
               </div>
               <div className="span-6">
                 <label className="ms-label">Gender</label>

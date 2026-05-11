@@ -95,9 +95,22 @@ export async function verifyEmail(req, res) {
 }
 
 export async function login(req, res) {
-  requireFields(req.body, ['email', 'password']);
+  requireFields(req.body, ['password']);
+
+  const identifier = String(req.body.identifier || req.body.email || req.body.phone || '').trim();
+  if (!identifier) {
+    return res.status(400).json({ message: 'Email or mobile number is required' });
+  }
 
   const tenantSlug = String(req.body.tenantSlug || '').trim();
+  const phone = normalizePhone(identifier);
+  const userLookup = {
+    active: true,
+    OR: [
+      { email: identifier },
+      ...(phone ? [{ phone }] : [])
+    ]
+  };
   let tenant = null;
   let user = null;
 
@@ -114,27 +127,26 @@ export async function login(req, res) {
     user = await prisma.user.findFirst({
       where: {
         tenantId: tenant.id,
-        email: req.body.email,
-        active: true
-      }
+        ...userLookup
+      },
+      orderBy: { createdAt: 'desc' }
     });
   } else {
     const matchedUsers = await prisma.user.findMany({
-      where: {
-        email: req.body.email,
-        active: true
-      },
+      where: userLookup,
       include: {
         tenant: {
           include: {
             region: true
           }
         }
-      }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2
     });
 
-    if (matchedUsers.length !== 1) {
-      return res.status(401).json({ message: 'Enter workspace code to continue' });
+    if (matchedUsers.length < 1) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     user = matchedUsers[0];
