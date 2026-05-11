@@ -23,6 +23,40 @@ const LFT_PARAMETERS = [
   { name: 'Gamma Glutamyl Transferase-Serum', unit: 'IU/L', range: '12 - 43', value: '' }
 ];
 
+function buildResultBarcodeValue({ mrn, orderId, testCode, index }) {
+  const mrnKey = String(mrn || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(-8) || 'PATIENT';
+  const orderKey = String(orderId || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(-6) || 'ORDER';
+  const codeKey = String(testCode || 'TEST').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8) || 'TEST';
+  return `${mrnKey}${orderKey}${codeKey}${String(index + 1).padStart(2, '0')}`;
+}
+
+function MiniBarcode({ value }) {
+  const bars = useMemo(() => {
+    const raw = String(value || '').trim() || 'LIMS';
+    const start = [1, 1, 0, 1, 0, 0, 1, 1];
+    const end = [1, 1, 0, 0, 1, 0, 1, 1];
+    const body = raw
+      .split('')
+      .flatMap((char) => {
+        const bin = char.charCodeAt(0).toString(2).padStart(8, '0').split('').map(Number);
+        return [0, ...bin, 1];
+      });
+    return [...start, ...body, ...end];
+  }, [value]);
+
+  const width = Math.max(bars.length * 2, 120);
+
+  return (
+    <div className="barcode-stack">
+      <svg className="barcode-svg" viewBox={`0 0 ${width} 42`} preserveAspectRatio="none" role="img" aria-label={`Barcode ${value}`}>
+        <rect x="0" y="0" width={width} height="42" fill="white" />
+        {bars.map((bar, index) => (bar ? <rect key={`${value}-${index}`} x={index * 2} y="2" width="2" height="30" fill="#111111" /> : null))}
+      </svg>
+      <span className="barcode-text">{value}</span>
+    </div>
+  );
+}
+
 function parseRange(referenceRange) {
   const values = String(referenceRange || '').match(/-?\d+(?:\.\d+)?/g);
   if (!values || values.length < 2) return null;
@@ -149,6 +183,30 @@ function ResultEntryInner() {
       return statusOk && (!q || haystack.includes(q));
     });
   }, [orders, queueSearch, statusFilter]);
+
+  const selectedBarcodeEntries = useMemo(() => {
+    return Object.entries(selectedServices)
+      .filter(([, checked]) => checked)
+      .map(([key], index) => {
+        const [selectedOrderId, selectedResultId] = key.split(':');
+        const selectedOrder = orders.find((item) => item.id === selectedOrderId);
+        const selectedResult = selectedOrder?.results?.find((item) => item.id === selectedResultId);
+        if (!selectedOrder || !selectedResult) return null;
+        return {
+          id: key,
+          patient: formatPatientName(selectedOrder.patient),
+          name: selectedResult.testCatalog?.name || selectedResult.testCatalog?.code || 'Test',
+          sampleType: selectedResult.testCatalog?.method || selectedResult.unit || 'Sample',
+          value: buildResultBarcodeValue({
+            mrn: selectedOrder.patient?.mrn,
+            orderId: selectedOrder.id,
+            testCode: selectedResult.testCatalog?.code,
+            index
+          })
+        };
+      })
+      .filter(Boolean);
+  }, [orders, selectedServices]);
 
   const metrics = useMemo(() => {
     const total = orders.length;
@@ -386,6 +444,13 @@ function ResultEntryInner() {
 
         <div className="result-action-bar">
           <MsButton type="button" onClick={openSelectedResult}>Result</MsButton>
+          <MsButton type="button" variant="secondary" onClick={() => {
+            if (!selectedBarcodeEntries.length) {
+              toast.warning('Select one or more services to generate barcodes');
+              return;
+            }
+            toast.success(`${selectedBarcodeEntries.length} barcode label(s) ready`);
+          }}>Bar Code</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Queue saved')}>Save</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => window.print()}>Print</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Email queued')}>Email</MsButton>
@@ -393,6 +458,26 @@ function ResultEntryInner() {
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Download started')}>Download</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Direct WhatsApp to patient queued')}>Direct WA to Patient</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Direct WhatsApp to doctor queued')}>Direct WA to Doctor</MsButton>
+        </div>
+
+        <div className="barcode-panel">
+          <div className="barcode-panel-head">
+            <span className="barcode-panel-title">Result Page Barcodes</span>
+            <span className="barcode-panel-meta">{selectedBarcodeEntries.length} label(s)</span>
+          </div>
+          {selectedBarcodeEntries.length === 0 ? (
+            <div className="barcode-empty">Select services from the queue to generate test-wise barcode labels.</div>
+          ) : (
+            <div className="barcode-grid">
+              {selectedBarcodeEntries.map((entry) => (
+                <div key={entry.id} className="barcode-card">
+                  <div className="barcode-card-title">{entry.name}</div>
+                  <div className="barcode-card-subtitle">{entry.patient} · {entry.sampleType}</div>
+                  <MiniBarcode value={entry.value} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </MsCard>
     </PageWrapper>
