@@ -1379,3 +1379,231 @@ a {
     width: auto;
   }
 }
+
+.search-registration-layout {
+  align-items: start;
+}
+
+.search-booking-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.search-booking-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.search-booking-list,
+.catalog-list-box,
+.selected-tests-box,
+.existing-tests-box {
+  border: 1px solid var(--ios-divider);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.46);
+  overflow: hidden;
+}
+
+.search-registration-header-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-chip {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--ios-divider);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 13px;
+}
+
+.search-registration-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.search-registration-catalog,
+.search-registration-invoice {
+  display: grid;
+  gap: 14px;
+}
+
+.catalog-toolbar-row,
+.invoice-payment-row,
+.invoice-toolbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
+.invoice-toolbar-actions {
+  justify-content: flex-end;
+}
+
+.top-aligned-icons {
+  padding-bottom: 2px;
+}
+
+.catalog-list-box {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.catalog-row-button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(60, 60, 67, 0.08);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s ease;
+}
+
+.catalog-row-button:last-child {
+  border-bottom: 0;
+}
+
+.catalog-row-button:hover {
+  background: rgba(10, 132, 255, 0.06);
+}
+
+.catalog-row-checkbox {
+  color: var(--ios-blue);
+  font-size: 18px;
+}
+
+.catalog-row-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ios-text);
+}
+
+.catalog-row-meta,
+.catalog-row-price {
+  font-size: 13px;
+  color: var(--ios-subtle);
+  white-space: nowrap;
+}
+
+.prominent-icon-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid rgba(10, 132, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(244,247,255,0.9));
+  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.12);
+  font-size: 17px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.prominent-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(10, 132, 255, 0.16);
+  background: linear-gradient(180deg, rgba(255,255,255,1), rgba(236,244,255,0.96));
+}
+
+.prominent-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compact-table th,
+.compact-table td {
+  padding-top: 11px;
+  padding-bottom: 11px;
+  vertical-align: middle;
+}
+
+.compact-table tr.is-selected {
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.empty-inline {
+  padding: 18px 14px;
+  color: var(--ios-subtle);
+  font-size: 13px;
+}
+
+.invoice-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.invoice-metric {
+  border: 1px solid var(--ios-divider);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.52);
+  padding: 10px 12px;
+}
+
+.invoice-metric-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ios-subtle);
+  margin-bottom: 6px;
+}
+
+.invoice-metric-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ios-text);
+}
+
+.invoice-payment-row {
+  display: grid;
+  grid-template-columns: 180px 140px minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.invoice-save-slot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1440px) {
+  .search-registration-header-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-registration-workbench {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .search-booking-toolbar,
+  .invoice-payment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-summary-grid,
+  .search-registration-header-grid {
+    grid-template-columns: 1fr;
+  }
+}
