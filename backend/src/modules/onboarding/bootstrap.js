@@ -3,22 +3,23 @@ import { prisma } from '../../config/prisma.js';
 import { encryptField } from '../../utils/encryption.js';
 
 const BOOTSTRAP_USERS = [
-  { email: 'tech@demo-lab.com', phone: '9999999991', password: 'Tech@123', role: 'TECHNICIAN' },
-  { email: 'path@demo-lab.com', phone: '9999999992', password: 'Path@123', role: 'PATHOLOGIST' },
-  { email: 'recep@demo-lab.com', phone: '9999999993', password: 'Recep@123', role: 'RECEPTION' },
-  { email: 'patient@demo-lab.com', phone: '9999999999', password: 'Patient@123', role: 'PATIENT' }
+  { email: 'admin@demolab.com', phone: '9999999990', password: 'Admin@123', role: 'ADMIN' },
+  { email: 'tech@demolab.com', phone: '9999999991', password: 'Tech@123', role: 'TECHNICIAN' },
+  { email: 'path@demolab.com', phone: '9999999992', password: 'Path@123', role: 'PATHOLOGIST' },
+  { email: 'recep@demolab.com', phone: '9999999993', password: 'Recep@123', role: 'RECEPTION' },
+  { email: 'patient@demolab.com', phone: '9999999999', password: 'Patient@123', role: 'PATIENT' }
 ];
 
 const BOOTSTRAP_TESTS = [
-  { code: 'CBC', name: 'Complete Blood Count', category: 'HEMATOLOGY', unit: 'g/dL', method: 'Automated', turnaroundHours: 4, price: 450, male: '13-17', female: '12-15' },
+  { code: 'CBC', name: 'CBC', category: 'HEMATOLOGY', unit: 'g/dL', method: 'Automated', turnaroundHours: 4, price: 450, male: '13-17', female: '12-15' },
+  { code: 'LFT', name: 'LFT', category: 'BIOCHEMISTRY', unit: 'U/L', method: 'Photometry', turnaroundHours: 8, price: 900, male: '7-56', female: '7-56' },
+  { code: 'RFT', name: 'RFT', category: 'BIOCHEMISTRY', unit: 'mg/dL', method: 'Photometry', turnaroundHours: 8, price: 850, male: '0.6-1.3', female: '0.5-1.1' },
+  { code: 'THY', name: 'Thyroid Profile', category: 'ENDOCRINOLOGY', unit: 'uIU/mL', method: 'CLIA', turnaroundHours: 8, price: 700, male: '0.4-4.0', female: '0.4-4.0' },
+  { code: 'LIPID', name: 'Lipid Profile', category: 'BIOCHEMISTRY', unit: 'mg/dL', method: 'Enzymatic', turnaroundHours: 8, price: 950, male: '0-200', female: '0-200' },
+  { code: 'URM', name: 'Urine R/M', category: 'CLINICAL_PATHOLOGY', unit: 'cells/HPF', method: 'Microscopy', turnaroundHours: 6, price: 300, male: '0-5', female: '0-5' },
   { code: 'HGB', name: 'Hemoglobin', category: 'HEMATOLOGY', unit: 'g/dL', method: 'Automated', turnaroundHours: 4, price: 180, male: '13-17', female: '12-15' },
   { code: 'ESR', name: 'ESR', category: 'HEMATOLOGY', unit: 'mm/hr', method: 'Westergren', turnaroundHours: 4, price: 200, male: '0-15', female: '0-20' },
   { code: 'GLU', name: 'Glucose Fasting', category: 'BIOCHEMISTRY', unit: 'mg/dL', method: 'Hexokinase', turnaroundHours: 2, price: 250, male: '70-100', female: '70-100' },
-  { code: 'LFT', name: 'Liver Function Test', category: 'BIOCHEMISTRY', unit: 'U/L', method: 'Photometry', turnaroundHours: 8, price: 900, male: '7-56', female: '7-56' },
-  { code: 'KFT', name: 'Kidney Function Test', category: 'BIOCHEMISTRY', unit: 'mg/dL', method: 'Photometry', turnaroundHours: 8, price: 850, male: '0.6-1.3', female: '0.5-1.1' },
-  { code: 'TSH', name: 'TSH', category: 'ENDOCRINOLOGY', unit: 'uIU/mL', method: 'CLIA', turnaroundHours: 8, price: 500, male: '0.4-4.0', female: '0.4-4.0' },
-  { code: 'HBA1C', name: 'HbA1c', category: 'BIOCHEMISTRY', unit: '%', method: 'HPLC', turnaroundHours: 6, price: 700, male: '4.0-5.6', female: '4.0-5.6' },
-  { code: 'URIN', name: 'Urine Routine', category: 'CLINICAL_PATHOLOGY', unit: 'cells/HPF', method: 'Microscopy', turnaroundHours: 6, price: 300, male: '0-5', female: '0-5' },
   { code: 'CRP', name: 'C-Reactive Protein', category: 'SEROLOGY', unit: 'mg/L', method: 'Immunoturbidimetry', turnaroundHours: 6, price: 650, male: '0-5', female: '0-5' }
 ];
 

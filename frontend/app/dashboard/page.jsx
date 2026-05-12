@@ -8,6 +8,9 @@ import MsBadge from '@/components/ui/MsBadge';
 import { api } from '@/lib/api';
 import { socketClient } from '@/lib/socket';
 import { useToast } from '@/components/ui/ToastProvider';
+import { getUser } from '@/lib/auth';
+
+const WALKTHROUGH_KEY_PREFIX = 'lims-demo-walkthrough-dismissed';
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState({
@@ -19,7 +22,23 @@ export default function DashboardPage() {
     analyzers: []
   });
   const [feed, setFeed] = useState([]);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   const toast = useToast();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const user = getUser();
+    const walkKey = `${WALKTHROUGH_KEY_PREFIX}:${user?.tenantId || 'default'}`;
+    setShowWalkthrough(window.localStorage.getItem(walkKey) !== '1');
+  }, []);
+
+  function dismissWalkthrough() {
+    if (typeof window === 'undefined') return;
+    const user = getUser();
+    const walkKey = `${WALKTHROUGH_KEY_PREFIX}:${user?.tenantId || 'default'}`;
+    window.localStorage.setItem(walkKey, '1');
+    setShowWalkthrough(false);
+  }
 
   useEffect(() => {
     async function load() {
@@ -55,6 +74,81 @@ export default function DashboardPage() {
 
   return (
     <PageWrapper>
+      {showWalkthrough ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(9, 10, 15, 0.38)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 80,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 24
+          }}
+        >
+          <div
+            className="ms-card"
+            style={{
+              width: 'min(720px, 100%)',
+              padding: 28,
+              borderRadius: 28,
+              boxShadow: '0 28px 70px rgba(15, 23, 42, 0.22)',
+              display: 'grid',
+              gap: 18
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.04em' }}>Demo workspace is ready</div>
+              <div style={{ marginTop: 8, color: 'var(--color-muted)', lineHeight: 1.5 }}>
+                We created a safe demo lab with seeded tests, users, patients, visit history, reports, invoices, and analyzer-ready records.
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              {[
+                'Preloaded panels: CBC, LFT, RFT, Thyroid Profile, Lipid Profile, Urine R/M',
+                'Demo users: admin, tech, pathologist, receptionist',
+                'Patient history, results, invoices, and reports already populated',
+                'Demo data stays isolated under Demo mode from day 1'
+              ].map((item) => (
+                <div
+                  key={item}
+                  style={{
+                    border: '1px solid var(--ios-border)',
+                    borderRadius: 18,
+                    padding: '14px 16px',
+                    background: 'rgba(255,255,255,0.9)',
+                    fontSize: 14,
+                    lineHeight: 1.45
+                  }}
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div
+              style={{
+                border: '1px solid rgba(255, 159, 10, 0.18)',
+                background: 'rgba(255, 247, 237, 0.96)',
+                borderRadius: 18,
+                padding: '14px 16px',
+                color: '#9a6700',
+                fontSize: 14
+              }}
+            >
+              When you are ready to move from demo to live operations, complete the full configuration wizard from Configuration and update your lab masters there.
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="btn btn-secondary" onClick={dismissWalkthrough}>
+                Dismiss
+              </button>
+              <a className="btn btn-primary" href="/configuration" onClick={dismissWalkthrough}>
+                Open Configuration
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <h1 className="page-title">Dashboard</h1>
       <div className="grid-12">
         {kpiCards.map((k) => (

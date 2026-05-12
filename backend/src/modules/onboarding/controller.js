@@ -48,7 +48,7 @@ export async function step1(req, res) {
     data: {
       name: req.body.tenantName,
       slug: tenantSlug,
-      plan: req.body.plan || 'STARTER',
+      plan: req.body.plan || 'DEMO',
       regionId: region.id,
       onboardingStep: 1,
       branchName: req.body.tenantName,
