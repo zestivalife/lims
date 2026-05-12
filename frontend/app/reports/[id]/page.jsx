@@ -15,6 +15,8 @@ export default function ReportViewerPage() {
   const params = useParams();
   const id = params?.id;
   const [report, setReport] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [dicomStudies, setDicomStudies] = useState([]);
   const [openSign, setOpenSign] = useState(false);
   const [pin, setPin] = useState('');
   const toast = useToast();
@@ -25,6 +27,14 @@ export default function ReportViewerPage() {
     try {
       const data = await api.get(`/api/reports/${id}/download`);
       setReport(data);
+      if (data.orderId) {
+        const [attachmentData, dicomData] = await Promise.all([
+          api.get(`/api/tests/orders/${data.orderId}/attachments`),
+          api.get(`/api/tests/orders/${data.orderId}/dicom-studies`)
+        ]);
+        setAttachments(attachmentData.attachments || []);
+        setDicomStudies(dicomData.dicomStudies || []);
+      }
     } catch (e) {
       toast.error(e.message || 'Failed to load report');
     }
@@ -86,6 +96,35 @@ export default function ReportViewerPage() {
               <MsButton variant="secondary" onClick={() => window.print()}>
                 Print
               </MsButton>
+            </div>
+          </MsCard>
+        </div>
+
+        <div className="span-6">
+          <MsCard title="Supporting Files">
+            <div className="stack-sm">
+              {attachments.length ? attachments.map((item) => (
+                <a key={item.id} href={item.storageUrl} target="_blank" rel="noreferrer">{item.title}</a>
+              )) : <div style={{ color: 'var(--color-muted)' }}>No attachments linked to this report.</div>}
+            </div>
+          </MsCard>
+        </div>
+
+        <div className="span-6">
+          <MsCard title="Radiology & Imaging">
+            <div className="stack-sm">
+              {dicomStudies.length ? dicomStudies.map((item) => (
+                <div key={item.id}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>{item.modality} · {item.studyUid}</div>
+                  {item.previewImageUrl ? (
+                    <img src={item.previewImageUrl} alt={item.studyUid} style={{ width: '100%', borderRadius: 12, border: '1px solid var(--color-border)' }} />
+                  ) : item.viewerUrl ? (
+                    <iframe src={item.viewerUrl} title={item.studyUid} style={{ width: '100%', height: 220, border: '1px solid var(--color-border)', borderRadius: 12 }} />
+                  ) : (
+                    <div style={{ color: 'var(--color-muted)' }}>Viewer URL not available.</div>
+                  )}
+                </div>
+              )) : <div style={{ color: 'var(--color-muted)' }}>No DICOM studies linked to this report.</div>}
             </div>
           </MsCard>
         </div>

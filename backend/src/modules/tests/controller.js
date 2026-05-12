@@ -1,7 +1,12 @@
 import { prisma } from '../../config/prisma.js';
 import { getIo } from '../../config/socket.js';
 import { env } from '../../config/env.js';
+import { uploadBufferToS3 } from '../../config/s3.js';
 import { parsePagination, requireFields } from '../../utils/validators.js';
+
+function sanitizeFileName(name = 'file') {
+  return String(name).replace(/[^a-zA-Z0-9._-]/g, '-');
+}
 
 function evaluateStatus(value, referenceRange) {
   const n = Number(value);
@@ -182,7 +187,10 @@ export async function getOrder(req, res) {
           testCatalog: true
         }
       },
-      invoice: true
+      invoice: true,
+      imagingOrders: true,
+      attachments: true,
+      dicomStudies: true
     }
   });
 
@@ -191,6 +199,177 @@ export async function getOrder(req, res) {
   }
 
   res.json(order);
+}
+
+export async function createImagingOrder(req, res) {
+  requireFields(req.body, ['modality', 'studyDescription']);
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  const imagingOrder = await prisma.imagingOrder.create({
+    data: {
+      tenantId: req.user.tenantId,
+      orderId: order.id,
+      modality: req.body.modality,
+      departmentName: req.body.departmentName || null,
+      studyDescription: req.body.studyDescription,
+      clinicalNotes: req.body.clinicalNotes || null,
+      externalAccession: req.body.externalAccession || null,
+      createdBy: req.user.userId
+    }
+  });
+
+  res.status(201).json({ message: 'Imaging order created', imagingOrder });
+}
+
+export async function listImagingOrders(req, res) {
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  const imagingOrders = await prisma.imagingOrder.findMany({
+    where: { tenantId: req.user.tenantId, orderId: order.id },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json({ imagingOrders });
+}
+
+export async function uploadOrderAttachment(req, res) {
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ message: 'File is required' });
+  }
+
+  const allowedTypes = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'application/dicom',
+    'application/octet-stream'
+  ]);
+
+  if (!allowedTypes.has(req.file.mimetype)) {
+    return res.status(400).json({ message: 'Unsupported attachment type' });
+  }
+
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: req.user.tenantId },
+    include: { region: true }
+  });
+
+  const key = `${tenant.slug}/orders/${order.id}/attachments/${Date.now()}-${sanitizeFileName(req.file.originalname)}`;
+  const storageUrl = await uploadBufferToS3({
+    region: tenant.region?.storageBucketRegion || 'ap-south-1',
+    key,
+    buffer: req.file.buffer,
+    contentType: req.file.mimetype
+  });
+
+  const attachment = await prisma.orderAttachment.create({
+    data: {
+      tenantId: req.user.tenantId,
+      orderId: order.id,
+      kind: req.body.kind || 'OTHER',
+      title: req.body.title || req.file.originalname,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+      storageUrl,
+      uploadedBy: req.user.userId
+    }
+  });
+
+  res.status(201).json({ message: 'Attachment uploaded', attachment });
+}
+
+export async function listOrderAttachments(req, res) {
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  const attachments = await prisma.orderAttachment.findMany({
+    where: { tenantId: req.user.tenantId, orderId: order.id },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json({ attachments });
+}
+
+export async function createDicomStudy(req, res) {
+  requireFields(req.body, ['studyUid', 'modality']);
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  const existing = await prisma.dicomStudy.findFirst({
+    where: { tenantId: req.user.tenantId, studyUid: req.body.studyUid }
+  });
+
+  const data = {
+    tenantId: req.user.tenantId,
+    orderId: order.id,
+    studyUid: req.body.studyUid,
+    accessionNo: req.body.accessionNo || null,
+    modality: req.body.modality,
+    studyDate: req.body.studyDate ? new Date(req.body.studyDate) : null,
+    seriesCount: Number(req.body.seriesCount || 0),
+    instanceCount: Number(req.body.instanceCount || 0),
+    viewerUrl: req.body.viewerUrl || null,
+    previewImageUrl: req.body.previewImageUrl || null,
+    ingestSource: req.body.ingestSource || 'PACS'
+  };
+
+  const dicomStudy = existing
+    ? await prisma.dicomStudy.update({
+        where: { id: existing.id },
+        data
+      })
+    : await prisma.dicomStudy.create({ data });
+
+  res.status(existing ? 200 : 201).json({ message: 'DICOM study saved', dicomStudy });
+}
+
+export async function listDicomStudies(req, res) {
+  const order = await prisma.testOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId }
+  });
+
+  if (!order) {
+    return res.status(404).json({ message: 'Order not found' });
+  }
+
+  const dicomStudies = await prisma.dicomStudy.findMany({
+    where: { tenantId: req.user.tenantId, orderId: order.id },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json({ dicomStudies });
 }
 
 export async function updateOrderStatus(req, res) {

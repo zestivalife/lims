@@ -151,6 +151,7 @@ export async function downloadReport(req, res) {
 
   res.json({
     id: report.id,
+    orderId: report.orderId,
     pdfUrl: report.pdfUrl,
     signedAt: report.signedAt,
     signedBy: report.signedBy,

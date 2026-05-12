@@ -80,6 +80,24 @@ enum AnalyzerProtocol {
   VENDOR
 }
 
+enum ImagingModality {
+  XRAY
+  CT
+  MRI
+  ULTRASOUND
+  HISTOPATHOLOGY
+  OTHER
+}
+
+enum AttachmentKind {
+  REFERRAL_DOCUMENT
+  PREVIOUS_REPORT
+  RADIOLOGY_REPORT
+  HISTOPATHOLOGY_IMAGE
+  DICOM
+  OTHER
+}
+
 model Tenant {
   id                  String        @id @default(cuid())
   name                String
@@ -100,6 +118,9 @@ model Tenant {
   testOrders          TestOrder[]
   reports             Report[]
   analyzers           Analyzer[]
+  imagingOrders       ImagingOrder[]
+  attachments         OrderAttachment[]
+  dicomStudies        DicomStudy[]
   auditLogs           AuditLog[]
   consentLogs         ConsentLog[]
   invoices            Invoice[]
@@ -145,6 +166,8 @@ model User {
   enteredResults TestResult[] @relation("EnteredBy")
   verifiedResults TestResult[] @relation("VerifiedBy")
   signedReports  Report[]   @relation("SignedBy")
+  createdImagingOrders ImagingOrder[]
+  uploadedAttachments  OrderAttachment[]
   auditLogs      AuditLog[]
   consentLogs    ConsentLog[]
 
@@ -214,9 +237,73 @@ model TestOrder {
   results           TestResult[]
   report            Report?
   invoice           Invoice?
+  imagingOrders     ImagingOrder[]
+  attachments       OrderAttachment[]
+  dicomStudies      DicomStudy[]
 
   @@index([tenantId, status])
   @@index([patientId, createdAt])
+}
+
+model ImagingOrder {
+  id               String          @id @default(cuid())
+  tenantId         String
+  orderId          String
+  modality         ImagingModality
+  departmentName   String?
+  studyDescription String
+  clinicalNotes    String?
+  externalAccession String?
+  createdBy        String?
+  createdAt        DateTime        @default(now())
+
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  order            TestOrder       @relation(fields: [orderId], references: [id])
+  createdByUser    User?           @relation(fields: [createdBy], references: [id])
+
+  @@index([tenantId, orderId])
+}
+
+model OrderAttachment {
+  id           String         @id @default(cuid())
+  tenantId     String
+  orderId      String
+  kind         AttachmentKind
+  title        String
+  fileName     String
+  contentType  String
+  fileSize     Int
+  storageUrl   String
+  uploadedBy   String?
+  createdAt    DateTime       @default(now())
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  order        TestOrder      @relation(fields: [orderId], references: [id])
+  uploadedByUser User?        @relation(fields: [uploadedBy], references: [id])
+
+  @@index([tenantId, orderId, kind])
+}
+
+model DicomStudy {
+  id             String          @id @default(cuid())
+  tenantId       String
+  orderId        String
+  studyUid       String
+  accessionNo    String?
+  modality       ImagingModality
+  studyDate      DateTime?
+  seriesCount    Int             @default(0)
+  instanceCount  Int             @default(0)
+  viewerUrl      String?
+  previewImageUrl String?
+  ingestSource   String?
+  createdAt      DateTime        @default(now())
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  order          TestOrder       @relation(fields: [orderId], references: [id])
+
+  @@unique([tenantId, studyUid])
+  @@index([tenantId, orderId])
 }
 
 model TestResult {
