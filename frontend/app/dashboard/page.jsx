@@ -22,6 +22,10 @@ export default function DashboardPage() {
     criticalAlerts: 0,
     revenueToday: 0,
     revenueTodayBreakdown: { cash: 0, upi: 0, card: 0, credit: 0, total: 0 },
+    tatBreaches: 0,
+    tatByDepartment: [],
+    tatTrend7: [],
+    tatTrend30: [],
     recentPatients: [],
     analyzers: []
   });
@@ -195,6 +199,97 @@ export default function DashboardPage() {
                   <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>₹{Number(value).toFixed(2)}</div>
                 </div>
               ))}
+            </div>
+          </MsCard>
+        </div>
+
+        <div className="span-6">
+          <MsCard title="TAT Monitoring">
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div
+                className="ms-card"
+                style={{
+                  padding: 16,
+                  borderRadius: 18,
+                  display: 'grid',
+                  gap: 6,
+                  borderColor: 'rgba(255, 59, 48, 0.18)',
+                  background: 'rgba(255, 245, 245, 0.98)'
+                }}
+              >
+                <div style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>Breach Alerts</div>
+                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--color-danger)' }}>{kpis.tatBreaches || 0}</div>
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {(kpis.tatByDepartment || []).slice(0, 6).map((item) => (
+                  <div
+                    key={item.department}
+                    className="ms-card"
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 16,
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto auto',
+                      gap: 12,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{item.department}</div>
+                    <div style={{ color: 'var(--color-muted)', fontSize: 13 }}>{item.averageHours} hrs avg</div>
+                    <MsBadge status={item.breaches > 0 ? 'abnormal' : 'normal'}>{item.breaches} breach</MsBadge>
+                  </div>
+                ))}
+                {(!kpis.tatByDepartment || kpis.tatByDepartment.length === 0) && <div style={{ color: 'var(--color-muted)' }}>No TAT records available yet.</div>}
+              </div>
+            </div>
+          </MsCard>
+        </div>
+
+        <div className="span-6">
+          <MsCard title="TAT Trends">
+            <div style={{ display: 'grid', gap: 14 }}>
+              <div>
+                <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--color-muted)' }}>Last 7 days</div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {(kpis.tatTrend7 || []).map((item) => (
+                    <div
+                      key={`7-${item.date}`}
+                      className="ms-card"
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 14,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: 10
+                      }}
+                    >
+                      <div>{new Date(item.date).toLocaleDateString()}</div>
+                      <div style={{ fontWeight: 600 }}>{item.averageHours} hrs</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--color-muted)' }}>Last 30 days</div>
+                <div style={{ display: 'grid', gap: 8, maxHeight: 220, overflow: 'auto', paddingRight: 4 }}>
+                  {(kpis.tatTrend30 || []).map((item) => (
+                    <div
+                      key={`30-${item.date}`}
+                      className="ms-card"
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 14,
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: 10
+                      }}
+                    >
+                      <div>{new Date(item.date).toLocaleDateString()}</div>
+                      <div style={{ fontWeight: 600 }}>{item.averageHours} hrs</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </MsCard>
         </div>
