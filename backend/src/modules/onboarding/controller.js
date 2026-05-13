@@ -4,6 +4,11 @@ import { requireFields } from '../../utils/validators.js';
 import { getRegionConfig, listRegionConfigs } from '../regions/regionConfig.js';
 import { ensureTenantBootstrapped } from './bootstrap.js';
 
+const normalizePlanType = (value) => {
+  const requestedPlan = String(value || 'STARTER').trim().toUpperCase();
+  return ['STARTER', 'GROWTH', 'ENTERPRISE'].includes(requestedPlan) ? requestedPlan : 'STARTER';
+};
+
 export async function step1(req, res) {
   requireFields(req.body, ['tenantName', 'adminEmail', 'adminPhone', 'password', 'countryKey']);
 
@@ -48,7 +53,7 @@ export async function step1(req, res) {
     data: {
       name: req.body.tenantName,
       slug: tenantSlug,
-      plan: req.body.plan || 'DEMO',
+      plan: normalizePlanType(req.body.plan),
       regionId: region.id,
       onboardingStep: 1,
       branchName: req.body.tenantName,
