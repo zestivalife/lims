@@ -74,6 +74,13 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum PaymentMode {
+  CASH
+  UPI
+  CARD
+  CREDIT
+}
+
 enum AnalyzerProtocol {
   HL7
   ASTM
@@ -441,6 +448,8 @@ model Invoice {
   total      Decimal       @db.Decimal(12, 2)
   currency   String
   status     InvoiceStatus @default(PENDING)
+  paymentMode PaymentMode? @map("payment_mode")
+  paidAmount Decimal?      @db.Decimal(12, 2) @map("paid_amount")
   createdAt  DateTime      @default(now()) @map("created_at")
 
   tenant     Tenant        @relation(fields: [tenantId], references: [id])

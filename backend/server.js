@@ -57,17 +57,49 @@ app.get('/health', (req, res) => {
 
 app.get('/api/dashboard/kpis', authRequired, async (req, res, next) => {
   try {
-    const [todayTests, pendingResults, criticalAlerts, revenueToday, recentPatients, analyzers] = await Promise.all([
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [
+      todayRegistrations,
+      pendingCollections,
+      samplesInProcessing,
+      reportsPendingAuth,
+      reportsDelivered,
+      criticalAlerts,
+      revenueRows,
+      recentPatients,
+      analyzers
+    ] = await Promise.all([
+      prisma.patient.count({
+        where: {
+          tenantId: req.user.tenantId,
+          createdAt: { gte: startOfToday }
+        }
+      }),
       prisma.testOrder.count({
         where: {
           tenantId: req.user.tenantId,
-          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+          sampleCollectedAt: null,
+          status: { not: 'CANCELLED' }
         }
       }),
-      prisma.testResult.count({
+      prisma.testOrder.count({
         where: {
-          order: { tenantId: req.user.tenantId },
-          value: ''
+          tenantId: req.user.tenantId,
+          status: 'IN_PROGRESS'
+        }
+      }),
+      prisma.report.count({
+        where: {
+          tenantId: req.user.tenantId,
+          signedAt: null
+        }
+      }),
+      prisma.report.count({
+        where: {
+          tenantId: req.user.tenantId,
+          deliveredAt: { not: null }
         }
       }),
       prisma.testResult.count({
@@ -76,12 +108,17 @@ app.get('/api/dashboard/kpis', authRequired, async (req, res, next) => {
           status: 'CRITICAL'
         }
       }),
-      prisma.invoice.aggregate({
+      prisma.invoice.findMany({
         where: {
           tenantId: req.user.tenantId,
-          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
+          createdAt: { gte: startOfToday },
+          status: 'PAID'
         },
-        _sum: { total: true }
+        select: {
+          total: true,
+          paidAmount: true,
+          paymentMode: true
+        }
       }),
       prisma.patient.findMany({
         where: { tenantId: req.user.tenantId },
@@ -95,11 +132,29 @@ app.get('/api/dashboard/kpis', authRequired, async (req, res, next) => {
       })
     ]);
 
+    const revenueTodayBreakdown = revenueRows.reduce(
+      (acc, invoice) => {
+        const amount = Number(invoice.paidAmount ?? invoice.total ?? 0);
+        acc.total += amount;
+        const mode = invoice.paymentMode || 'CREDIT';
+        if (mode === 'CASH') acc.cash += amount;
+        if (mode === 'UPI') acc.upi += amount;
+        if (mode === 'CARD') acc.card += amount;
+        if (mode === 'CREDIT') acc.credit += amount;
+        return acc;
+      },
+      { cash: 0, upi: 0, card: 0, credit: 0, total: 0 }
+    );
+
     res.json({
-      todayTests,
-      pendingResults,
       criticalAlerts,
-      revenueToday: Number(revenueToday._sum.total || 0),
+      todayRegistrations,
+      pendingCollections,
+      samplesInProcessing,
+      reportsPendingAuth,
+      reportsDelivered,
+      revenueToday: revenueTodayBreakdown.total,
+      revenueTodayBreakdown,
       recentPatients,
       analyzers
     });

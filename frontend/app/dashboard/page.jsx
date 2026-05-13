@@ -14,10 +14,14 @@ const WALKTHROUGH_KEY_PREFIX = 'lims-demo-walkthrough-dismissed';
 
 export default function DashboardPage() {
   const [kpis, setKpis] = useState({
-    todayTests: 0,
-    pendingResults: 0,
+    todayRegistrations: 0,
+    pendingCollections: 0,
+    samplesInProcessing: 0,
+    reportsPendingAuth: 0,
+    reportsDelivered: 0,
     criticalAlerts: 0,
     revenueToday: 0,
+    revenueTodayBreakdown: { cash: 0, upi: 0, card: 0, credit: 0, total: 0 },
     recentPatients: [],
     analyzers: []
   });
@@ -64,10 +68,12 @@ export default function DashboardPage() {
 
   const kpiCards = useMemo(
     () => [
-      { label: "Today's Tests", value: kpis.todayTests, trend: '+8% vs yesterday' },
-      { label: 'Pending Results', value: kpis.pendingResults, trend: 'Live queue' },
-      { label: 'Critical Alerts', value: kpis.criticalAlerts, trend: 'Requires review' },
-      { label: 'Revenue Today', value: `₹${Number(kpis.revenueToday).toFixed(2)}`, trend: 'Billing summary' }
+      { label: "Today's Registrations", value: kpis.todayRegistrations, trend: 'New patients today' },
+      { label: 'Pending Collections', value: kpis.pendingCollections, trend: 'Awaiting sample collection' },
+      { label: 'Samples in Processing', value: kpis.samplesInProcessing, trend: 'Active lab pipeline' },
+      { label: 'Reports Pending Auth', value: kpis.reportsPendingAuth, trend: 'Awaiting sign-off' },
+      { label: 'Reports Delivered', value: kpis.reportsDelivered, trend: 'Released to patients' },
+      { label: 'Revenue Today', value: `₹${Number(kpis.revenueToday).toFixed(2)}`, trend: 'Collected today' }
     ],
     [kpis]
   );
@@ -152,13 +158,46 @@ export default function DashboardPage() {
       <h1 className="page-title">Dashboard</h1>
       <div className="grid-12">
         {kpiCards.map((k) => (
-          <div key={k.label} className="span-3">
+          <div key={k.label} className="span-2">
             <MsCard title={k.label}>
               <div className="kpi-value">{k.value}</div>
               <div style={{ marginTop: 4, color: 'var(--color-muted)' }}>{k.trend}</div>
             </MsCard>
           </div>
         ))}
+
+        <div className="span-12">
+          <MsCard title="Revenue by Payment Mode">
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 14
+              }}
+            >
+              {[
+                ['Cash', kpis.revenueTodayBreakdown?.cash || 0],
+                ['UPI', kpis.revenueTodayBreakdown?.upi || 0],
+                ['Card', kpis.revenueTodayBreakdown?.card || 0],
+                ['Credit', kpis.revenueTodayBreakdown?.credit || 0]
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="ms-card"
+                  style={{
+                    padding: 16,
+                    borderRadius: 18,
+                    display: 'grid',
+                    gap: 6
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: 'var(--color-muted)', fontWeight: 600 }}>{label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>₹{Number(value).toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+          </MsCard>
+        </div>
 
         <div className="span-8">
           <MsCard title="Live Results Feed">

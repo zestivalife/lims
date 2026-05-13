@@ -64,11 +64,22 @@ export async function recordPayment(req, res) {
     return res.status(400).json({ message: 'Amount must be greater than zero' });
   }
 
+  const paymentMode = String(req.body.mode || '')
+    .trim()
+    .toUpperCase();
+  if (!['CASH', 'UPI', 'CARD', 'CREDIT'].includes(paymentMode)) {
+    return res.status(400).json({ message: 'Invalid payment mode' });
+  }
+
   req.auditOldValue = invoice;
   const nextStatus = String(req.body.status).toUpperCase() === 'PAID' ? 'PAID' : 'PENDING';
   const updated = await prisma.invoice.update({
     where: { id: invoice.id },
-    data: { status: nextStatus }
+    data: {
+      status: nextStatus,
+      paymentMode,
+      paidAmount: amount
+    }
   });
 
   return res.json({
@@ -76,7 +87,7 @@ export async function recordPayment(req, res) {
     invoice: updated,
     payment: {
       amount,
-      mode: req.body.mode,
+      mode: paymentMode,
       txRef: req.body.txRef || null,
       receiptDelivery: req.body.receiptDelivery || []
     }
