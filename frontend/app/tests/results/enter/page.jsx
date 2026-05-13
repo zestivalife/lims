@@ -187,6 +187,12 @@ function ResultEntryInner() {
   const [selectedServices, setSelectedServices] = useState({});
   const [queueSearch, setQueueSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [priorityFilter, setPriorityFilter] = useState('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState('ALL');
+  const [sortMode, setSortMode] = useState('LATEST');
+  const [quickFilter, setQuickFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [order, setOrder] = useState(null);
   const [rows, setRows] = useState([]);
   const [authChecked, setAuthChecked] = useState(true);
@@ -197,7 +203,16 @@ function ResultEntryInner() {
 
   async function loadQueue() {
     try {
-      const data = await api.get('/api/tests/orders?page=1&pageSize=100');
+      const params = new URLSearchParams({ page: '1', pageSize: '100' });
+      if (queueSearch.trim()) params.set('q', queueSearch.trim());
+      if (statusFilter !== 'ALL') params.set('status', statusFilter);
+      if (priorityFilter !== 'ALL') params.set('priority', priorityFilter);
+      if (departmentFilter !== 'ALL') params.set('department', departmentFilter);
+      if (quickFilter !== 'ALL') params.set('quickFilter', quickFilter);
+      if (sortMode !== 'LATEST') params.set('sort', sortMode);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      const data = await api.get(`/api/tests/orders?${params.toString()}`);
       const rows = Array.isArray(data) ? data : (data.data || data.orders || []);
       setOrders(rows);
     } catch (error) {
@@ -245,27 +260,25 @@ function ResultEntryInner() {
 
   useEffect(() => {
     loadQueue();
-  }, []);
+  }, [queueSearch, statusFilter, priorityFilter, departmentFilter, quickFilter, sortMode, dateFrom, dateTo]);
 
   useEffect(() => {
     if (orderId) loadOrder(orderId);
   }, [orderId, testId]);
 
-  const filteredOrders = useMemo(() => {
-    const q = queueSearch.trim().toLowerCase();
-    return orders.filter((item) => {
-      const haystack = [
-        item.id,
-        item.patient?.name,
-        item.patient?.mrn,
-        item.patient?.phone,
-        item.status,
-        ...(item.results || []).map((result) => result.testCatalog?.name)
-      ].join(' ').toLowerCase();
-      const statusOk = statusFilter === 'ALL' || item.status === statusFilter;
-      return statusOk && (!q || haystack.includes(q));
-    });
-  }, [orders, queueSearch, statusFilter]);
+  const filteredOrders = orders;
+
+  const departmentOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          orders.flatMap((item) =>
+            (item.results || []).map((result) => result.testCatalog?.category).filter(Boolean)
+          )
+        )
+      ).sort(),
+    [orders]
+  );
 
   const selectedBarcodeEntries = useMemo(() => {
     return Object.entries(selectedServices)
@@ -331,6 +344,24 @@ function ResultEntryInner() {
     const selectedOrder = orders.find((item) => item.id === selectedOrderId);
     const selectedResult = selectedOrder?.results?.find((item) => item.id === selectedResultId);
     return selectedOrder && selectedResult ? { order: selectedOrder, result: selectedResult } : null;
+  }
+
+  async function markSelectedSamplesReceived() {
+    const orderIds = [...new Set(selectedQueueServices.map((entry) => entry.order.id))];
+    if (!orderIds.length) {
+      toast.warning('Select one or more services first');
+      return;
+    }
+    try {
+      await Promise.all(
+        orderIds.map((id) => api.put(`/api/tests/orders/${id}/status`, { status: 'IN_PROGRESS' }))
+      );
+      toast.success('Selected samples marked as received');
+      setSelectedServices({});
+      await loadQueue();
+    } catch (error) {
+      toast.error(error.message || 'Failed to update selected samples');
+    }
   }
 
   function buildReportRows(result) {
@@ -606,20 +637,40 @@ function ResultEntryInner() {
         </div>
 
         <div className="lab-filter-row">
+          <select className="ms-select" value={quickFilter} onChange={(e) => setQuickFilter(e.target.value)}>
+            <option value="ALL">All queues</option>
+            <option value="pending_collection">Pending collection</option>
+            <option value="pending_result_entry">Pending result entry</option>
+            <option value="pending_authentication">Pending authentication</option>
+            <option value="pending_delivery">Pending delivery</option>
+          </select>
           <select className="ms-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="ALL">All</option>
             <option value="PENDING">Pending</option>
             <option value="IN_PROGRESS">Received</option>
             <option value="COMPLETED">Completed</option>
           </select>
-          <MsInput type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
-          <MsInput type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+          <select className="ms-select" value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
+            <option value="ALL">All priorities</option>
+            <option value="ROUTINE">Routine</option>
+            <option value="URGENT">Urgent</option>
+            <option value="STAT">STAT</option>
+          </select>
+          <select className="ms-select" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+            <option value="ALL">All departments</option>
+            {departmentOptions.map((department) => (
+              <option key={department} value={department}>{department}</option>
+            ))}
+          </select>
+          <select className="ms-select" value={sortMode} onChange={(e) => setSortMode(e.target.value)}>
+            <option value="LATEST">Latest first</option>
+            <option value="FIFO">FIFO</option>
+            <option value="PRIORITY">Priority first</option>
+          </select>
+          <MsInput type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <MsInput type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           <MsInput placeholder="Patient Name/ID" value={queueSearch} onChange={(e) => setQueueSearch(e.target.value)} />
-          <MsInput placeholder="Lab Request No" />
-          <MsInput placeholder="Search Corporate" />
-          <MsInput placeholder="Department" />
-          <MsInput placeholder="Test Name" />
-          <span className="queue-iconbar">Search Clear Refresh Print Menu</span>
+          <span className="queue-iconbar">Search • Queue • Print</span>
         </div>
 
         <div className="lab-workqueue">
@@ -663,7 +714,14 @@ function ResultEntryInner() {
                       );
                     })}
                   </td>
-                  <td>{item.patient?.insuranceId || 'Self'}</td>
+                  <td>
+                    <div className="queue-refby-stack">
+                      <span>{item.patient?.insuranceId || 'Self'}</span>
+                      <span className={`ms-badge ${item.priority === 'STAT' ? 'danger' : item.priority === 'URGENT' ? 'warning' : 'pending'}`}>
+                        {item.priority || 'ROUTINE'}
+                      </span>
+                    </div>
+                  </td>
                   <td>{formatOrderDate(item)}</td>
                   <td><input type="checkbox" /></td>
                 </tr>
@@ -678,6 +736,7 @@ function ResultEntryInner() {
         <div className="result-action-bar">
           <MsButton type="button" onClick={openSelectedResult}>Result</MsButton>
           <MsButton type="button" variant="secondary" onClick={openBarcodePopup}>Bar Code</MsButton>
+          <MsButton type="button" variant="secondary" onClick={markSelectedSamplesReceived}>Mark Received</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Queue saved')}>Save</MsButton>
           <MsButton type="button" variant="secondary" onClick={printSelectedQueueReports}>Print</MsButton>
           <MsButton type="button" variant="secondary" onClick={() => toast.success('Email queued')}>Email</MsButton>
