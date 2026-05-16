@@ -3,21 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --ios-bg: #efeff3;
-  --ios-surface: #f7f7f9;
-  --ios-card: rgba(255, 255, 255, 0.72);
-  --ios-card-solid: #f4f4f6;
-  --ios-text: #1d1d1f;
-  --ios-subtle: #6e6e73;
-  --ios-divider: rgba(60, 60, 67, 0.16);
-  --ios-blue: #0a84ff;
-  --ios-pink: #ff375f;
-  --ios-green: #34c759;
-  --ios-orange: #ff9f0a;
-  --ios-red: #ff453a;
-  --ios-shadow: 0 12px 28px rgba(26, 26, 28, 0.11);
-  --ios-shadow-soft: 0 6px 14px rgba(26, 26, 28, 0.08);
-  --ios-blur: blur(22px) saturate(160%);
+  --ios-bg: #0f1014;
+  --ios-surface: #14161c;
+  --ios-card: rgba(255, 255, 255, 0.04);
+  --ios-card-solid: #1a1c23;
+  --ios-text: #f7f7f8;
+  --ios-subtle: rgba(255, 255, 255, 0.64);
+  --ios-divider: rgba(255, 255, 255, 0.08);
+  --ios-blue: #4da3ff;
+  --ios-pink: #ff3b6b;
+  --ios-green: #c8ff00;
+  --ios-orange: #ffb020;
+  --ios-red: #ff4d4f;
+  --ios-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  --ios-shadow-soft: 0 12px 28px rgba(0, 0, 0, 0.28);
+  --ios-blur: blur(20px) saturate(150%);
   --ios-title: 18px;
   --ios-body: 14px;
   --ios-control: 40px;
@@ -34,7 +34,7 @@ body {
   min-height: 100%;
   font-family: 'SF Pro Text', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ios-text);
-  background: radial-gradient(circle at top left, #f8f8fb 0%, #f1f2f6 48%, #ebeef5 100%);
+  background: radial-gradient(circle at top left, rgba(255, 59, 107, 0.1) 0%, transparent 28%), radial-gradient(circle at top right, rgba(77, 163, 255, 0.1) 0%, transparent 22%), linear-gradient(180deg, #0f1014 0%, #111217 100%);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
