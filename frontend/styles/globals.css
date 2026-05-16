@@ -1698,7 +1698,7 @@ a {
   line-height: 1.2;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(59, 68, 77, 0.72);
+  color: rgba(55, 65, 81, 0.78);
   font-weight: 700;
 }
 
@@ -1706,7 +1706,7 @@ a {
   font-size: 28px;
   line-height: 1;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #1f2937;
 }
 
 .dashboard-priority-helper,
@@ -1719,7 +1719,7 @@ a {
 .dashboard-stat-highlight {
   font-size: 13px;
   line-height: 1.45;
-  color: var(--ios-subtle);
+  color: #64748b;
 }
 
 .dashboard-kpi-slot {
@@ -1762,7 +1762,7 @@ a {
   font-size: 42px;
   line-height: 1;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #111827;
 }
 
 .dashboard-stack {
@@ -1796,13 +1796,13 @@ a {
 .dashboard-workflow-name {
   font-size: 13px;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #1f2937;
 }
 
 .dashboard-workflow-value {
   font-size: 22px;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #111827;
   white-space: nowrap;
 }
 
@@ -1856,7 +1856,7 @@ a {
 .dashboard-status-title {
   font-size: 14px;
   font-weight: 600;
-  color: var(--ios-text);
+  color: #1f2937;
 }
 
 .dashboard-status-item {
@@ -1891,7 +1891,7 @@ a {
 .dashboard-revenue-value {
   font-size: 26px;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #111827;
 }
 
 .dashboard-table-tools {
@@ -1923,7 +1923,7 @@ a {
 .dashboard-empty-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--ios-text);
+  color: #1f2937;
 }
 
 .dashboard-empty-action {
