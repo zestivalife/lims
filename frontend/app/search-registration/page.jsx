@@ -93,7 +93,7 @@ export default function SearchRegistrationPage() {
     }
 
     api.get(`/api/patients/${order.patientId}/history`)
-      .then((res) => setHistory(res.orders || []))
+      .then((res) => setHistory(res.history || res.orders || []))
       .catch(() => setHistory([]));
   }, [selectedOrderId, orders]);
 

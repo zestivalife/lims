@@ -8,21 +8,8 @@ import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
 import MsModal from '@/components/ui/MsModal';
 import { api } from '@/lib/api';
+import { getParametersForTest, isValueAbnormal } from '@/lib/testParameters';
 import { useToast } from '@/components/ui/ToastProvider';
-
-const LFT_PARAMETERS = [
-  { name: 'Total Bilirubin', unit: 'mg/dL', range: '0.2 - 1.0', value: '1.2' },
-  { name: 'Direct Bilirubin', unit: 'mg/dL', range: '0.2 - 0.4', value: '0.21' },
-  { name: 'Indirect Bilirubin', unit: 'mg/dL', range: '0.2 - 0.4', value: '0.45' },
-  { name: 'SGPT (ALT)', unit: 'U/L', range: '0 - 35', value: '45' },
-  { name: 'SGOT (AST)', unit: 'U/L', range: '0 - 40', value: '48' },
-  { name: 'Alkaline Phosphatase', unit: 'U/L', range: '30 - 120', value: '98' },
-  { name: 'Total Proteins', unit: 'g/dL', range: '6.0 - 8.0', value: '5.1' },
-  { name: 'Albumin Serum', unit: 'g/dL', range: '3.2 - 4.6', value: '3.9' },
-  { name: 'Globulin Serum', unit: 'g/dL', range: '1.8 - 3.6', value: '2.8' },
-  { name: 'A/G Ratio', unit: 'Ratio', range: '1.2 - 2.2', value: '1.90' },
-  { name: 'Gamma Glutamyl Transferase-Serum', unit: 'IU/L', range: '12 - 43', value: '' }
-];
 
 function buildResultBarcodeValue({ mrn, orderId, testCode, index }) {
   const mrnKey = String(mrn || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(-8) || 'PATIENT';
@@ -56,20 +43,6 @@ function MiniBarcode({ value }) {
       <span className="barcode-text">{value}</span>
     </div>
   );
-}
-
-function parseRange(referenceRange) {
-  const values = String(referenceRange || '').match(/-?\d+(?:\.\d+)?/g);
-  if (!values || values.length < 2) return null;
-  return [Number(values[0]), Number(values[1])];
-}
-
-function isAbnormal(value, referenceRange) {
-  if (value === '' || value === null || value === undefined) return false;
-  const n = Number(value);
-  const range = parseRange(referenceRange);
-  if (Number.isNaN(n) || !range) return false;
-  return n < range[0] || n > range[1];
 }
 
 function formatPatientName(patient) {
@@ -175,6 +148,40 @@ function barcodeSvgMarkup(value) {
   `;
 }
 
+function buildPanelRows(result) {
+  const testName = result?.testCatalog?.name || result?.testCatalog?.code || 'Test';
+  const fallbackRange =
+    result?.referenceRange || result?.testCatalog?.normalRangeMale || result?.testCatalog?.normalRangeFemale || '';
+  const fallbackUnit = result?.unit || result?.testCatalog?.unit || '';
+  const templates = getParametersForTest(testName);
+  const hasPanelTemplate =
+    templates.length > 1 || (templates.length === 1 && templates[0].name.toLowerCase() !== testName.toLowerCase());
+
+  if (!hasPanelTemplate) {
+    return [
+      {
+        id: result?.id || `${panelSlug(testName)}-0`,
+        sourceResultId: result?.id || null,
+        investigation: testName,
+        value: result?.value || '',
+        unit: fallbackUnit,
+        referenceRange: fallbackRange,
+        abnormal: isValueAbnormal(result?.value, fallbackRange)
+      }
+    ];
+  }
+
+  return templates.map((item, index) => ({
+    id: `${result?.id || panelSlug(testName)}-${index}`,
+    sourceResultId: index === 0 ? result?.id || null : null,
+    investigation: item.name,
+    value: index === 0 ? result?.value || '' : '',
+    unit: item.unit || fallbackUnit,
+    referenceRange: item.range || fallbackRange,
+    abnormal: isValueAbnormal(index === 0 ? result?.value || '' : '', item.range || fallbackRange)
+  }));
+}
+
 function ResultEntryInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -227,27 +234,7 @@ function ResultEntryInner() {
       const data = await api.get(`/api/tests/orders/${id}`);
       setOrder(data);
       const selected = (data.results || []).find((item) => item.id === testId) || (data.results || [])[0];
-      const selectedName = selected?.testCatalog?.name || selected?.testCatalog?.code || 'Test';
-      const isLft = /liver|lft/i.test(selectedName);
-      const parameterRows = isLft
-        ? LFT_PARAMETERS.map((item, index) => ({
-            id: `${selected?.id || 'lft'}-${index}`,
-            sourceResultId: index === 0 ? selected?.id : null,
-            investigation: item.name,
-            value: index === 0 ? (selected?.value || item.value) : item.value,
-            unit: item.unit,
-            referenceRange: item.range,
-            abnormal: isAbnormal(index === 0 ? (selected?.value || item.value) : item.value, item.range)
-          }))
-        : (data.results || []).map((item) => ({
-            id: item.id,
-            sourceResultId: item.id,
-            investigation: item.testCatalog?.name || item.testCatalog?.code || 'Test',
-            value: item.value || '',
-            unit: item.unit || item.testCatalog?.unit || '',
-            referenceRange: item.referenceRange || item.testCatalog?.normalRangeMale || item.testCatalog?.normalRangeFemale || '',
-            abnormal: isAbnormal(item.value, item.referenceRange || item.testCatalog?.normalRangeMale || item.testCatalog?.normalRangeFemale)
-          }));
+      const parameterRows = selected ? buildPanelRows(selected) : [];
       setRows(parameterRows);
     } catch (error) {
       toast.error(error.message || 'Unable to load test entry page');
@@ -365,28 +352,13 @@ function ResultEntryInner() {
   }
 
   function buildReportRows(result) {
-    const selectedName = result?.testCatalog?.name || result?.testCatalog?.code || 'Test';
-    const isLft = /liver|lft/i.test(selectedName);
-    if (isLft) {
-      return LFT_PARAMETERS.map((item, index) => {
-        const value = index === 0 ? (result?.value || item.value) : item.value;
-        return {
-          investigation: item.name,
-          value,
-          unit: item.unit,
-          referenceRange: item.range,
-          abnormal: isAbnormal(value, item.range)
-        };
-      });
-    }
-    const referenceRange = result?.referenceRange || result?.testCatalog?.normalRangeMale || result?.testCatalog?.normalRangeFemale || '';
-    return [{
-      investigation: selectedName,
-      value: result?.value || '',
-      unit: result?.unit || result?.testCatalog?.unit || '',
-      referenceRange,
-      abnormal: isAbnormal(result?.value, referenceRange)
-    }];
+    return buildPanelRows(result).map((row) => ({
+      investigation: row.investigation,
+      value: row.value,
+      unit: row.unit,
+      referenceRange: row.referenceRange,
+      abnormal: row.abnormal
+    }));
   }
 
   function openPrintWindow(title, bodyMarkup) {
@@ -508,7 +480,7 @@ function ResultEntryInner() {
   function updateValue(rowId, value) {
     setRows((prev) => prev.map((row) => {
       if (row.id !== rowId) return row;
-      const autoAbnormal = isAbnormal(value, row.referenceRange);
+      const autoAbnormal = isValueAbnormal(value, row.referenceRange);
       return { ...row, value, abnormal: autoAbnormal };
     }));
   }
