@@ -139,24 +139,29 @@ export const TEST_PARAMETER_LIBRARY = {
 };
 
 const TEST_ALIASES = [
-  { code: 'CBC', match: /complete blood count|cbc|haemogram|hemogram|blood count/i },
-  { code: 'LFT', match: /liver|lft|hepatic/i },
-  { code: 'KFT', match: /kidney|renal|rft|kft|creatinine|urea/i },
-  { code: 'THYROID', match: /thyroid|tft|t3|t4|tsh/i },
-  { code: 'LIPID', match: /lipid|cholesterol|triglyceride/i },
-  { code: 'URINE', match: /urine|urinalysis|routine microscopic|r\/m/i },
-  { code: 'GLUCOSE', match: /glucose|sugar|hba1c|diabetes/i },
-  { code: 'COAG', match: /coag|pt|inr|aptt|d-dimer|bleeding|clotting/i },
-  { code: 'SPECIAL', match: /iron|vitamin|crp|troponin|ferritin|aso|rheumatoid|procalcitonin/i }
+  { code: 'CBC', match: /complete blood count|complete hemogram|cbc|haemogram|hemogram|blood count/i },
+  { code: 'LFT', match: /liver|lft|hepatic|bilirubin|sgpt|sgot|alt|ast/i },
+  { code: 'KFT', match: /kidney|renal|rft|kft|creatinine|urea|electrolyte/i },
+  { code: 'THYROID', match: /thyroid|tft|t3|t4|tsh|anti tpo|thyroglobulin/i },
+  { code: 'LIPID', match: /lipid|cholesterol|triglyceride|hdl|ldl|vldl/i },
+  { code: 'URINE', match: /urine|urinalysis|routine microscopic|r\/m|pus cells|specific gravity/i },
+  { code: 'GLUCOSE', match: /glucose|sugar|hba1c|diabetes|fasting sugar|pp sugar/i },
+  { code: 'COAG', match: /coag|pt|inr|aptt|d-dimer|bleeding|clotting|prothrombin/i },
+  { code: 'SPECIAL', match: /iron|vitamin|crp|troponin|ferritin|aso|rheumatoid|procalcitonin|b12|vitamin d/i }
 ];
 
 export function resolveTestCode(testName = '') {
   const match = TEST_ALIASES.find((item) => item.match.test(testName));
-  return match?.code || 'SPECIAL';
+  return match?.code || null;
+}
+
+export function hasParameterTemplate(testName = '') {
+  return Boolean(resolveTestCode(testName));
 }
 
 export function getParametersForTest(testName = '') {
-  return TEST_PARAMETER_LIBRARY[resolveTestCode(testName)] || TEST_PARAMETER_LIBRARY.SPECIAL;
+  const code = resolveTestCode(testName);
+  return code ? TEST_PARAMETER_LIBRARY[code] || [] : [];
 }
 
 function numericValue(value) {

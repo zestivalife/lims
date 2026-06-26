@@ -1059,11 +1059,11 @@ a {
 
 .investigation-toolbar {
   display: grid;
-  grid-template-columns: 2fr 1.2fr 1.6fr 1fr 0.8fr 1.2fr;
+  grid-template-columns: minmax(200px, 2fr) minmax(190px, 1.45fr) minmax(180px, 1.4fr) minmax(90px, 0.8fr) minmax(120px, 1.2fr);
   gap: 8px;
   align-items: center;
   padding: 10px 12px;
-  background: rgba(248, 248, 250, 0.92);
+  background: #f8f7c7;
   border-bottom: 1px solid var(--ios-divider);
   color: #344767;
   text-transform: uppercase;
@@ -1098,7 +1098,7 @@ a {
 
 .investigation-row {
   display: grid;
-  grid-template-columns: 2fr 32px 1.2fr 1fr 0.8fr 1.2fr;
+  grid-template-columns: minmax(200px, 2fr) minmax(190px, 1.45fr) minmax(180px, 1.4fr) minmax(90px, 0.8fr) minmax(120px, 1.2fr);
   gap: 8px;
   align-items: center;
   min-height: 34px;
@@ -1111,12 +1111,26 @@ a {
   font-weight: 800;
 }
 
+.observed-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.observed-cell.is-abnormal .observed-input {
+  border-color: var(--ios-red);
+  color: var(--ios-red);
+  font-weight: 700;
+}
+
 .observed-input {
   height: 28px;
+  width: 100%;
   border: 1px solid var(--ios-divider);
   border-radius: 7px;
   padding: 0 8px;
   font-size: 14px;
+  background: white;
 }
 
 .abnormal-check input {
@@ -1125,13 +1139,8 @@ a {
   accent-color: var(--ios-red);
 }
 
-.result-value {
-  text-align: center;
-}
-
-.result-value.abnormal {
-  color: var(--ios-red);
-  font-weight: 900;
+.template-cell {
+  min-height: 1px;
 }
 
 .comment-row {

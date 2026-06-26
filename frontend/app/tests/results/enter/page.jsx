@@ -8,8 +8,10 @@ import MsInput from '@/components/ui/MsInput';
 import MsButton from '@/components/ui/MsButton';
 import MsModal from '@/components/ui/MsModal';
 import { api } from '@/lib/api';
-import { getParametersForTest, isValueAbnormal } from '@/lib/testParameters';
+import { getParametersForTest, hasParameterTemplate, isValueAbnormal } from '@/lib/testParameters';
 import { useToast } from '@/components/ui/ToastProvider';
+
+const PANEL_ROWS_PREFIX = '__PANEL_ROWS__';
 
 function buildResultBarcodeValue({ mrn, orderId, testCode, index }) {
   const mrnKey = String(mrn || '').replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(-8) || 'PATIENT';
@@ -148,16 +150,32 @@ function barcodeSvgMarkup(value) {
   `;
 }
 
+function parseStoredPanelRows(rawMessage) {
+  if (!rawMessage || typeof rawMessage !== 'string' || !rawMessage.startsWith(PANEL_ROWS_PREFIX)) {
+    return [];
+  }
+
+  try {
+    const payload = JSON.parse(rawMessage.slice(PANEL_ROWS_PREFIX.length));
+    return Array.isArray(payload?.rows) ? payload.rows : [];
+  } catch {
+    return [];
+  }
+}
+
 function buildPanelRows(result) {
   const testName = result?.testCatalog?.name || result?.testCatalog?.code || 'Test';
   const fallbackRange =
     result?.referenceRange || result?.testCatalog?.normalRangeMale || result?.testCatalog?.normalRangeFemale || '';
   const fallbackUnit = result?.unit || result?.testCatalog?.unit || '';
   const templates = getParametersForTest(testName);
-  const hasPanelTemplate =
-    templates.length > 1 || (templates.length === 1 && templates[0].name.toLowerCase() !== testName.toLowerCase());
+  const storedRows = parseStoredPanelRows(result?.analyzerRawMessage);
+  const storedByName = new Map(
+    storedRows.map((row) => [String(row.investigation || '').trim().toLowerCase(), row])
+  );
+  const usesPanelTemplate = hasParameterTemplate(testName) && templates.length > 0;
 
-  if (!hasPanelTemplate) {
+  if (!usesPanelTemplate) {
     return [
       {
         id: result?.id || `${panelSlug(testName)}-0`,
@@ -175,10 +193,23 @@ function buildPanelRows(result) {
     id: `${result?.id || panelSlug(testName)}-${index}`,
     sourceResultId: index === 0 ? result?.id || null : null,
     investigation: item.name,
-    value: index === 0 ? result?.value || '' : '',
-    unit: item.unit || fallbackUnit,
-    referenceRange: item.range || fallbackRange,
-    abnormal: isValueAbnormal(index === 0 ? result?.value || '' : '', item.range || fallbackRange)
+    value:
+      storedByName.get(item.name.toLowerCase())?.value ??
+      (index === 0 ? result?.value || '' : ''),
+    unit:
+      storedByName.get(item.name.toLowerCase())?.unit ||
+      item.unit ||
+      fallbackUnit,
+    referenceRange:
+      storedByName.get(item.name.toLowerCase())?.referenceRange ||
+      item.range ||
+      fallbackRange,
+    abnormal:
+      storedByName.get(item.name.toLowerCase())?.abnormal ??
+      isValueAbnormal(
+        storedByName.get(item.name.toLowerCase())?.value ?? (index === 0 ? result?.value || '' : ''),
+        storedByName.get(item.name.toLowerCase())?.referenceRange || item.range || fallbackRange
+      )
   }));
 }
 
@@ -202,6 +233,7 @@ function ResultEntryInner() {
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [order, setOrder] = useState(null);
   const [rows, setRows] = useState([]);
+  const [templateSearch, setTemplateSearch] = useState('');
   const [authChecked, setAuthChecked] = useState(true);
   const [patientSearch, setPatientSearch] = useState('');
   const [remarkSearch, setRemarkSearch] = useState('');
@@ -235,6 +267,7 @@ function ResultEntryInner() {
       setOrder(data);
       const selected = (data.results || []).find((item) => item.id === testId) || (data.results || [])[0];
       const parameterRows = selected ? buildPanelRows(selected) : [];
+      setTemplateSearch('');
       setRows(parameterRows);
     } catch (error) {
       toast.error(error.message || 'Unable to load test entry page');
@@ -254,6 +287,17 @@ function ResultEntryInner() {
   }, [orderId, testId]);
 
   const filteredOrders = orders;
+  const visibleRows = useMemo(() => {
+    const query = templateSearch.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) => {
+      const haystack = [row.investigation, row.unit, row.referenceRange]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [rows, templateSearch]);
 
   const departmentOptions = useMemo(
     () =>
@@ -487,14 +531,22 @@ function ResultEntryInner() {
 
   async function saveResults(printAfter = false) {
     if (!order) return;
-    const payloadRows = rows
-      .filter((row) => row.sourceResultId)
-      .map((row) => ({
-        id: row.sourceResultId,
-        value: row.value,
-        unit: row.unit,
-        referenceRange: row.referenceRange
-      }));
+    const primaryRow = rows.find((row) => row.sourceResultId);
+    const payloadRows = primaryRow
+      ? [{
+          id: primaryRow.sourceResultId,
+          value: primaryRow.value,
+          unit: primaryRow.unit,
+          referenceRange: primaryRow.referenceRange,
+          panelRows: rows.map((row) => ({
+            investigation: row.investigation,
+            value: row.value,
+            unit: row.unit,
+            referenceRange: row.referenceRange,
+            abnormal: row.abnormal
+          }))
+        }]
+      : [];
     if (!payloadRows.length) {
       toast.warning('No result row is mapped to save');
       return;
@@ -510,7 +562,11 @@ function ResultEntryInner() {
   }
 
   if (orderId) {
-    const selectedName = rows[0]?.investigation || order?.results?.[0]?.testCatalog?.name || 'Test';
+    const selectedName =
+      order?.results?.find((item) => item.id === testId)?.testCatalog?.name ||
+      order?.results?.[0]?.testCatalog?.name ||
+      rows[0]?.investigation ||
+      'Test';
     const abnormalCount = rows.filter((row) => row.abnormal).length;
 
     return (
@@ -531,8 +587,7 @@ function ResultEntryInner() {
             <div className="investigation-toolbar">
               <strong>Investigation</strong>
               <strong>Observed Value</strong>
-              <MsInput placeholder="Type to search template" />
-              <strong>Result</strong>
+              <MsInput placeholder="Type to search template" value={templateSearch} onChange={(e) => setTemplateSearch(e.target.value)} />
               <strong>Units</strong>
               <strong>Normal Range</strong>
             </div>
@@ -546,29 +601,34 @@ function ResultEntryInner() {
               </div>
               {loading ? (
                 <div className="investigation-row">Loading result sheet...</div>
-              ) : rows.map((row) => (
+              ) : visibleRows.map((row) => (
                 <div className="investigation-row" key={row.id}>
                   <div className="investigation-name">{row.investigation}</div>
-                  <label className="abnormal-check" title="Mark abnormal">
+                  <div className={`observed-cell ${row.abnormal ? 'is-abnormal' : ''}`}>
+                    <label className="abnormal-check" title="Mark abnormal">
+                      <input
+                        type="checkbox"
+                        checked={row.abnormal}
+                        onChange={(e) => setRows((prev) => prev.map((item) => item.id === row.id ? { ...item, abnormal: e.target.checked } : item))}
+                      />
+                    </label>
                     <input
-                      type="checkbox"
-                      checked={row.abnormal}
-                      onChange={(e) => setRows((prev) => prev.map((item) => item.id === row.id ? { ...item, abnormal: e.target.checked } : item))}
+                      className="observed-input"
+                      value={row.value}
+                      onChange={(e) => updateValue(row.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.closest('.investigation-row')?.nextElementSibling?.querySelector('.observed-input')?.focus();
+                      }}
                     />
-                  </label>
-                  <input
-                    className="observed-input"
-                    value={row.value}
-                    onChange={(e) => updateValue(row.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.currentTarget.closest('.investigation-row')?.nextElementSibling?.querySelector('.observed-input')?.focus();
-                    }}
-                  />
-                  <strong className={`result-value ${row.abnormal ? 'abnormal' : ''}`}>{row.value || '-'}</strong>
+                  </div>
+                  <div className="template-cell" />
                   <span>{row.unit || '-'}</span>
                   <span>{row.referenceRange || '-'}</span>
                 </div>
               ))}
+              {!loading && !visibleRows.length ? (
+                <div className="investigation-row">No parameters match this template search.</div>
+              ) : null}
               <label className="comment-row"><input type="checkbox" /> Comment</label>
             </section>
           </div>

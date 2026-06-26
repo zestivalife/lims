@@ -8,6 +8,8 @@ function sanitizeFileName(name = 'file') {
   return String(name).replace(/[^a-zA-Z0-9._-]/g, '-');
 }
 
+const PANEL_ROWS_PREFIX = '__PANEL_ROWS__';
+
 function evaluateStatus(value, referenceRange) {
   const n = Number(value);
   if (Number.isNaN(n)) return 'NORMAL';
@@ -16,6 +18,22 @@ function evaluateStatus(value, referenceRange) {
     if (n < parts[0] || n > parts[1]) return 'ABNORMAL';
   }
   return 'NORMAL';
+}
+
+function serializePanelRows(panelRows = [], existingRawMessage = null) {
+  if (!Array.isArray(panelRows) || !panelRows.length) {
+    return existingRawMessage;
+  }
+
+  return `${PANEL_ROWS_PREFIX}${JSON.stringify({
+    rows: panelRows.map((row) => ({
+      investigation: String(row.investigation || ''),
+      value: String(row.value || ''),
+      unit: String(row.unit || ''),
+      referenceRange: String(row.referenceRange || ''),
+      abnormal: Boolean(row.abnormal)
+    }))
+  })}`;
 }
 
 export async function getCatalog(req, res) {
@@ -78,15 +96,83 @@ export async function listOrders(req, res) {
   const { skip, take, page, pageSize } = parsePagination(req.query);
   const q = req.query.q?.trim();
   const status = req.query.status?.trim();
+  const priority = req.query.priority?.trim();
+  const department = req.query.department?.trim();
+  const quickFilter = req.query.quickFilter?.trim();
+  const sort = req.query.sort?.trim();
+  const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
+  const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
+  const validDateFrom = dateFrom && !Number.isNaN(dateFrom.getTime()) ? dateFrom : null;
+  const validDateTo = dateTo && !Number.isNaN(dateTo.getTime()) ? dateTo : null;
+
+  const orderBy =
+    sort === 'FIFO'
+      ? [{ createdAt: 'asc' }]
+      : sort === 'PRIORITY'
+        ? [{ priority: 'desc' }, { createdAt: 'asc' }]
+        : [{ createdAt: 'desc' }];
 
   const where = {
     tenantId: req.user.tenantId,
     ...(status ? { status } : {}),
+    ...(priority && priority !== 'ALL' ? { priority } : {}),
+    ...(department && department !== 'ALL'
+      ? {
+          results: {
+            some: {
+              testCatalog: {
+                category: { equals: department, mode: 'insensitive' }
+              }
+            }
+          }
+        }
+      : {}),
+    ...(validDateFrom || validDateTo
+      ? {
+          createdAt: {
+            ...(validDateFrom ? { gte: validDateFrom } : {}),
+            ...(validDateTo ? { lte: new Date(new Date(validDateTo).setHours(23, 59, 59, 999)) } : {})
+          }
+        }
+      : {}),
+    ...(quickFilter === 'pending_collection'
+      ? { status: 'PENDING' }
+      : quickFilter === 'pending_result_entry'
+        ? { status: 'IN_PROGRESS' }
+        : quickFilter === 'pending_authentication'
+          ? {
+              status: 'COMPLETED',
+              OR: [{ report: null }, { report: { signedAt: null } }]
+            }
+          : quickFilter === 'pending_delivery'
+            ? {
+                status: 'COMPLETED',
+                report: {
+                  is: {
+                    deliveredAt: null
+                  }
+                }
+              }
+            : {}),
     ...(q
       ? {
           OR: [
             { id: { contains: q, mode: 'insensitive' } },
-            { patient: { mrn: { contains: q, mode: 'insensitive' } } }
+            { patient: { mrn: { contains: q, mode: 'insensitive' } } },
+            { patient: { phone: { contains: q, mode: 'insensitive' } } },
+            { patient: { insuranceId: { contains: q, mode: 'insensitive' } } },
+            { patient: { name: { contains: q, mode: 'insensitive' } } },
+            {
+              results: {
+                some: {
+                  OR: [
+                    { testCatalog: { name: { contains: q, mode: 'insensitive' } } },
+                    { testCatalog: { code: { contains: q, mode: 'insensitive' } } },
+                    { testCatalog: { category: { contains: q, mode: 'insensitive' } } }
+                  ]
+                }
+              }
+            }
           ]
         }
       : {})
@@ -105,7 +191,7 @@ export async function listOrders(req, res) {
         invoice: true,
         report: true
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy
     }),
     prisma.testOrder.count({ where })
   ]);
@@ -429,7 +515,10 @@ export async function manualResultEntry(req, res) {
       where: { id: row.id, orderId: order.id }
     });
     if (!existing) continue;
-    const status = evaluateStatus(row.value, row.referenceRange || existing.referenceRange);
+    const panelRows = Array.isArray(row.panelRows) ? row.panelRows : [];
+    const status = panelRows.some((item) => item.abnormal)
+      ? 'ABNORMAL'
+      : evaluateStatus(row.value, row.referenceRange || existing.referenceRange);
 
     const updated = await prisma.testResult.update({
       where: { id: existing.id },
@@ -439,6 +528,7 @@ export async function manualResultEntry(req, res) {
         referenceRange: row.referenceRange || existing.referenceRange,
         status,
         enteredBy: req.user.id,
+        analyzerRawMessage: serializePanelRows(panelRows, existing.analyzerRawMessage),
         receivedAt: new Date()
       },
       include: {
